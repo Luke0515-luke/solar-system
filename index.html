@@ -123,7 +123,7 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
 <div id="app">
   <canvas id="gl" tabindex="0" aria-label="3D 太陽系，可拖曳旋轉、滾輪縮放、點選天體"></canvas>
   <div id="labels" aria-hidden="true"></div>
-  <div id="fail" hidden>無法載入 3D 引擎，請確認網路連線後重新整理頁面。</div>
+  <div id="fail" hidden>無法載入 3D 引擎 (three.js)。請確認網路能連到 cdnjs.cloudflare.com、cdn.jsdelivr.net 或 unpkg.com，並暫時關閉擋廣告或內容過濾的外掛後重新整理。</div>
 
   <div class="topbar">
     <div class="brand">
@@ -182,15 +182,10 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
   </footer>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 (function () {
 'use strict';
-if (typeof THREE === 'undefined' || !THREE.OrbitControls) {
-  document.getElementById('fail').hidden = false;
-  return;
-}
+function boot() {
 
 /* ---------- constants & helpers ---------- */
 var D2R = Math.PI / 180, TAU = Math.PI * 2;
@@ -462,7 +457,47 @@ renderer.setClearColor(0x050812, 1);
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera(48, 1, 0.01, 30000);
 camera.position.set(0, 120, 200);
-var controls = new THREE.OrbitControls(camera, canvas);
+/* minimal orbit controls: drag to rotate, wheel / pinch to zoom */
+function SimpleOrbit(cam, el) {
+  var self = this, dTheta = 0, dPhi = 0, zoom = 1, pointers = {}, pinch0 = 0, off = new THREE.Vector3();
+  this.target = new THREE.Vector3(); this.minDistance = 1; this.maxDistance = 20000;
+  this.rotateSpeed = 0.7; this.dampingFactor = 0.08; this.enableDamping = true; this.enablePan = false;
+  function pinchDist() {
+    var ids = Object.keys(pointers); if (ids.length < 2) return 0;
+    var a = pointers[ids[0]], b = pointers[ids[1]]; return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+  el.addEventListener('pointerdown', function (e) {
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    pinch0 = pinchDist();
+  });
+  el.addEventListener('pointermove', function (e) {
+    var p = pointers[e.pointerId]; if (!p) return;
+    var n = Object.keys(pointers).length, dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (n === 1) {
+      dTheta -= TAU * dx / el.clientHeight * self.rotateSpeed;
+      dPhi -= TAU * dy / el.clientHeight * self.rotateSpeed;
+    } else if (n === 2) {
+      var d = pinchDist(); if (pinch0 > 0 && d > 0) zoom *= pinch0 / d; pinch0 = d;
+    }
+  });
+  function up(e) { delete pointers[e.pointerId]; pinch0 = pinchDist(); }
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  el.addEventListener('wheel', function (e) { e.preventDefault(); zoom *= Math.exp(clamp(e.deltaY, -200, 200) * 0.0012); }, { passive: false });
+  this.update = function () {
+    off.copy(cam.position).sub(this.target);
+    var r = off.length() || 1, theta = Math.atan2(off.x, off.z), phi = Math.acos(clamp(off.y / r, -1, 1));
+    var k = this.enableDamping ? this.dampingFactor : 1;
+    theta += dTheta * k; phi = clamp(phi + dPhi * k, 0.05, Math.PI - 0.05);
+    r = clamp(r * (1 + (zoom - 1) * k), this.minDistance, this.maxDistance);
+    dTheta *= 1 - k; dPhi *= 1 - k; zoom = 1 + (zoom - 1) * (1 - k);
+    var sp = Math.sin(phi);
+    off.set(r * sp * Math.sin(theta), r * Math.cos(phi), r * sp * Math.cos(theta));
+    cam.position.copy(this.target).add(off); cam.lookAt(this.target);
+  };
+}
+var controls = new SimpleOrbit(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08; controls.enablePan = false;
 controls.rotateSpeed = 0.7; controls.maxDistance = 20000; controls.minDistance = 4;
 
@@ -894,6 +929,24 @@ goHome();
 })();
 setTimeout(function () { var t = $('toast'); if (t) t.classList.add('gone'); }, 7000);
 requestAnimationFrame(function (n) { last = n; frame(n); });
+}
+
+/* load three.js, trying several CDNs in turn */
+var SRC = [
+  'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+  'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+  'https://unpkg.com/three@0.128.0/build/three.min.js'
+];
+function loadThree(i) {
+  if (typeof THREE !== 'undefined') { boot(); return; }
+  if (i >= SRC.length) { document.getElementById('fail').hidden = false; return; }
+  var s = document.createElement('script');
+  s.src = SRC[i];
+  s.onload = function () { if (typeof THREE !== 'undefined') boot(); else loadThree(i + 1); };
+  s.onerror = function () { loadThree(i + 1); };
+  document.head.appendChild(s);
+}
+loadThree(0);
 })();
 </script>
 </body>
