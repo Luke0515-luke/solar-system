@@ -861,8 +861,8 @@ function updateOverlay() {
     p.line.visible = S.planetOrbits;
     var active = sys === p;
     var base = S.moonOrbits;
-    p.moonLineReg.opacity = active ? 0.7 : 0.16;
-    p.moonLineIrr.opacity = active ? 0.55 : 0.1;
+    if (p.moonLineReg) p.moonLineReg.opacity = active ? 0.7 : 0.16;
+    if (p.moonLineIrr) p.moonLineIrr.opacity = active ? 0.55 : 0.1;
     p.moons.forEach(function (m) { m.line.visible = base && (S.irr || !m.irr); });
   });
 }
