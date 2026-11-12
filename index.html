@@ -130,7 +130,7 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
   <div class="topbar">
     <div class="brand">
       <h1>太陽系模擬器</h1>
-      <p>拖曳旋轉・滾輪縮放・點選天體</p>
+      <p>拖曳旋轉・滾輪對準天體放大・點選天體</p>
     </div>
     <div class="tools">
       <button class="btn" id="btnLayers" aria-expanded="false" aria-controls="layers">圖層</button>
@@ -167,7 +167,7 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
 
   <section id="info" class="panel" hidden aria-live="polite"></section>
 
-  <div class="toast" id="toast">點選任一天體即可飛過去，衛星會跟著展開</div>
+  <div class="toast" id="toast">點選任一天體即可飛過去；按「特寫」或 + / − 可再放大縮小</div>
 
   <footer class="timebar">
     <div class="clock">
@@ -180,6 +180,9 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
       <input type="range" id="speed" min="0" max="7" step="1" value="5" aria-label="模擬速度">
       <button class="btn" id="btnNow">現在</button>
       <button class="btn" id="btnHome">全景</button>
+      <button class="btn" id="btnZoomOut" aria-label="縮小">－</button>
+      <button class="btn" id="btnZoomIn" aria-label="放大">＋</button>
+      <button class="btn" id="btnClose" title="快捷鍵 C">特寫</button>
     </div>
   </footer>
 </div>
@@ -246,7 +249,44 @@ function paint(w, h, fn) {
     im.data[p] = col[0]; im.data[p + 1] = col[1]; im.data[p + 2] = col[2]; im.data[p + 3] = 255;
   }
   g.putImageData(im, 0, 0);
-  var t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+  var t = new THREE.CanvasTexture(c);
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  queueHiRes(t, fn);
+  return t;
+}
+/* 高解析貼圖：分批在背景繪製（每次約 5ms），不會讓畫面卡住；完成後自動替換 */
+var HI_W = 1024, HI_H = 512, hiJobs = [], hiRunning = false;
+function queueHiRes(t, fn) {
+  var job = { tex: t, fn: fn, c: null, g: null, im: null, y: 0 };
+  t._job = job; hiJobs.push(job);
+  if (!hiRunning) { hiRunning = true; setTimeout(hiTick, 50); }
+}
+function prioritize(t) {
+  var j = t && t._job; if (!j) return;
+  var i = hiJobs.indexOf(j); if (i > 0) { hiJobs.splice(i, 1); hiJobs.unshift(j); }
+}
+function hiTick() {
+  var job = hiJobs[0];
+  if (!job) { hiRunning = false; return; }
+  if (!job.c) {
+    job.c = document.createElement('canvas'); job.c.width = HI_W; job.c.height = HI_H;
+    job.g = job.c.getContext('2d'); job.im = job.g.createImageData(HI_W, HI_H);
+  }
+  var t0 = performance.now(), d = job.im.data;
+  while (job.y < HI_H && performance.now() - t0 < 5) {
+    var y = job.y;
+    for (var x = 0; x < HI_W; x++) {
+      var col = job.fn(x / HI_W, y / HI_H), q = (y * HI_W + x) * 4;
+      d[q] = col[0]; d[q + 1] = col[1]; d[q + 2] = col[2]; d[q + 3] = 255;
+    }
+    job.y++;
+  }
+  if (job.y >= HI_H) {
+    job.g.putImageData(job.im, 0, 0);
+    job.tex.image = job.c; job.tex.needsUpdate = true;
+    job.im = null; job.tex._job = null; hiJobs.shift();
+  }
+  setTimeout(hiTick, 0);
 }
 function rockTex(c1, c2, base) {
   return paint(256, 128, function (u, v) {
@@ -449,7 +489,8 @@ var SPEED_LABELS = ['1 小時 / 秒', '6 小時 / 秒', '1 天 / 秒', '3 天 / 
 var S = { t: nowDays(), playing: !reduceMotion, dir: 1, speed: 5, dist: 'comp', moonScale: 1, planetOrbits: true, moonOrbits: true, irr: true, labels: true, belt: true };
 var SUN_R = 4;
 function mapAU(r) { return S.dist === 'comp' ? 12 * Math.pow(r, 0.6) : 25 * r; }
-function bodySize(R) { return Math.max(0.3, 0.9 * Math.pow(R / 6371, 0.45)); }
+var PLANET_SCALE = 1.5; /* 行星顯示比例：越大越容易看清楚 */
+function bodySize(R) { return PLANET_SCALE * Math.max(0.3, 0.9 * Math.pow(R / 6371, 0.45)); }
 
 /* ---------- three.js scene ---------- */
 var canvas = document.getElementById('gl'), app = document.getElementById('app'), labelsEl = document.getElementById('labels');
@@ -486,7 +527,8 @@ function SimpleOrbit(cam, el) {
   });
   function up(e) { delete pointers[e.pointerId]; pinch0 = pinchDist(); }
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-  el.addEventListener('wheel', function (e) { e.preventDefault(); zoom *= Math.exp(clamp(e.deltaY, -200, 200) * 0.0012); }, { passive: false });
+  el.addEventListener('wheel', function (e) { e.preventDefault(); zoom *= Math.exp(clamp(e.deltaY, -200, 200) * 0.0022); }, { passive: false });
+  this.zoomBy = function (f) { zoom *= f; };
   this.update = function () {
     off.copy(cam.position).sub(this.target);
     var r = off.length() || 1, theta = Math.atan2(off.x, off.z), phi = Math.acos(clamp(off.y / r, -1, 1));
@@ -507,7 +549,7 @@ scene.add(new THREE.AmbientLight(0x3a4668, 1.05));
 var sunLight = new THREE.PointLight(0xfff1dc, 1.55, 0);
 scene.add(sunLight);
 
-var sphereHi = new THREE.SphereGeometry(1, 48, 32), sphereLo = new THREE.SphereGeometry(1, 20, 14);
+var sphereHi = new THREE.SphereGeometry(1, 96, 64), sphereLo = new THREE.SphereGeometry(1, 40, 28);
 
 /* stars */
 var starPos = new Float32Array(2200 * 3), starCol = new Float32Array(2200 * 3), sr = rngFrom('stars');
@@ -666,7 +708,7 @@ function focusDist(b) {
   if (b.kind === 'moon') return Math.max(b.size * 9, 0.7);
   return clamp(Math.max(b.size * 5, (b.sysR || 0) * 1.8), b.size * 3.5, 70);
 }
-function minDist(b) { return b.kind === 'moon' ? b.size * 2.2 : b.size * (b.kind === 'sun' ? 1.5 : 1.7); }
+function minDist(b) { return b.kind === 'moon' ? b.size * 1.6 : b.size * (b.kind === 'sun' ? 1.3 : 1.25); }
 function overviewDist() { return mapAU(52) * 2.3; }
 function focusOn(b, opts) {
   opts = opts || {};
@@ -678,6 +720,7 @@ function focusOn(b, opts) {
 function select(b) {
   if (b.kind === 'moon' && b.irr && !S.irr) { S.irr = true; document.getElementById('optIrr').checked = true; }
   sel = b === sun ? sun : b;
+  if (b.mesh && b.mesh.material && b.mesh.material.map) prioritize(b.mesh.material.map);
   focusOn(b);
   renderInfo();
   refreshLines();
@@ -688,6 +731,17 @@ function goHome() {
   focusOn(sun, { dist: overviewDist(), dir: new THREE.Vector3(0, 0.5, 0.86).normalize() });
   controls.minDistance = 4;
   refreshLines();
+}
+function showToast(msg) {
+  var t = document.getElementById('toast'); t.textContent = msg; t.classList.remove('gone');
+  clearTimeout(showToast.h); showToast.h = setTimeout(function () { t.classList.add('gone'); }, 2600);
+}
+/* 特寫：把選取的天體放到幾乎填滿畫面 */
+function closeUp() {
+  var b = sel || (follow !== sun ? follow : null);
+  if (!b) { showToast('請先點選一個天體，再按「特寫」'); return; }
+  if (b.mesh && b.mesh.material && b.mesh.material.map) prioritize(b.mesh.material.map);
+  focusOn(b, { dist: b.ring ? b.size * 5.5 : b.size * 3.2 });
 }
 function refreshLines() {
   parents.forEach(function (p) { p.lineMat.opacity = (sel === p) ? 1 : 0.5; });
@@ -867,7 +921,21 @@ $('btnRev').addEventListener('click', function () { S.dir *= -1; this.setAttribu
 $('speed').addEventListener('input', function () { S.speed = +this.value; setSpeedLabel(); });
 $('btnNow').addEventListener('click', function () { S.t = nowDays(); });
 $('btnHome').addEventListener('click', goHome);
+$('btnZoomIn').addEventListener('click', function () { controls.zoomBy(0.7); });
+$('btnZoomOut').addEventListener('click', function () { controls.zoomBy(1 / 0.7); });
+$('btnClose').addEventListener('click', closeUp);
+/* 滾輪往前滾時，若游標對準某個天體，直接飛過去（全景時鏡頭鎖在太陽，否則推不近行星） */
+canvas.addEventListener('wheel', function (e) {
+  if (e.deltaY >= 0 || fly) return;
+  var b = pick(e.clientX, e.clientY, false);
+  if (b && b !== follow) select(b);
+}, { passive: true });
 document.addEventListener('keydown', function (e) {
+  if (!/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) {
+    if (e.key === '+' || e.key === '=') controls.zoomBy(0.75);
+    else if (e.key === '-' || e.key === '_') controls.zoomBy(1 / 0.75);
+    else if (e.key === 'c' || e.key === 'C') closeUp();
+  }
   if (e.code === 'Space' && !/INPUT|BUTTON|TEXTAREA/.test((document.activeElement || {}).tagName || '')) { e.preventDefault(); $('btnPlay').click(); }
 });
 
