@@ -502,7 +502,7 @@ var camera = new THREE.PerspectiveCamera(48, 1, 0.01, 30000);
 camera.position.set(0, 120, 200);
 /* minimal orbit controls: drag to rotate, wheel / pinch to zoom */
 function SimpleOrbit(cam, el) {
-  var self = this, dTheta = 0, dPhi = 0, zoom = 1, pointers = {}, pinch0 = 0, off = new THREE.Vector3();
+  var self = this, dTheta = 0, dPhi = 0, pointers = {}, pinch0 = 0, off = new THREE.Vector3();
   this.target = new THREE.Vector3(); this.minDistance = 1; this.maxDistance = 20000;
   this.rotateSpeed = 0.7; this.dampingFactor = 0.08; this.enableDamping = true; this.enablePan = false;
   function pinchDist() {
@@ -522,20 +522,28 @@ function SimpleOrbit(cam, el) {
       dTheta -= TAU * dx / el.clientHeight * self.rotateSpeed;
       dPhi -= TAU * dy / el.clientHeight * self.rotateSpeed;
     } else if (n === 2) {
-      var d = pinchDist(); if (pinch0 > 0 && d > 0) zoom *= pinch0 / d; pinch0 = d;
+      var d = pinchDist(); if (pinch0 > 0 && d > 0) self.zoomBy(pinch0 / d); pinch0 = d;
     }
   });
   function up(e) { delete pointers[e.pointerId]; pinch0 = pinchDist(); }
   el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-  el.addEventListener('wheel', function (e) { e.preventDefault(); zoom *= Math.exp(clamp(e.deltaY, -200, 200) * 0.0022); }, { passive: false });
-  this.zoomBy = function (f) { zoom *= f; };
+  this.zoomBy = function (f) {
+    var r = cam.position.distanceTo(self.target) || 1;
+    var next = clamp((fly ? fly.toD : r) * f, self.minDistance, self.maxDistance);
+    if (fly) { fly.toD = next; return; }
+    off.copy(cam.position).sub(self.target).multiplyScalar(next / r);
+    cam.position.copy(self.target).add(off);
+  };
+  el.addEventListener('wheel', function (e) {
+    e.preventDefault(); self.zoomBy(Math.exp(clamp(e.deltaY, -200, 200) * 0.0022));
+  }, { passive: false });
   this.update = function () {
     off.copy(cam.position).sub(this.target);
     var r = off.length() || 1, theta = Math.atan2(off.x, off.z), phi = Math.acos(clamp(off.y / r, -1, 1));
     var k = this.enableDamping ? this.dampingFactor : 1;
     theta += dTheta * k; phi = clamp(phi + dPhi * k, 0.05, Math.PI - 0.05);
-    r = clamp(r * (1 + (zoom - 1) * k), this.minDistance, this.maxDistance);
-    dTheta *= 1 - k; dPhi *= 1 - k; zoom = 1 + (zoom - 1) * (1 - k);
+    r = clamp(r, this.minDistance, this.maxDistance);
+    dTheta *= 1 - k; dPhi *= 1 - k;
     var sp = Math.sin(phi);
     off.set(r * sp * Math.sin(theta), r * Math.cos(phi), r * sp * Math.cos(theta));
     cam.position.copy(this.target).add(off); cam.lookAt(this.target);
@@ -741,6 +749,8 @@ function closeUp() {
   var b = sel || (follow !== sun ? follow : null);
   if (!b) { showToast('請先點選一個天體，再按「特寫」'); return; }
   if (b.mesh && b.mesh.material && b.mesh.material.map) prioritize(b.mesh.material.map);
+  /* 手機版資訊卡會蓋住畫面中央；特寫時收起資訊卡，保留目前選取與鏡頭。 */
+  if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) infoEl.hidden = true;
   focusOn(b, { dist: b.ring ? b.size * 5.5 : b.size * 3.2 });
 }
 function refreshLines() {
@@ -792,7 +802,7 @@ function updateLive() {
 }
 infoEl.addEventListener('click', function (e) {
   var t = e.target.closest('button'); if (!t) return;
-  if (t.id === 'closeInfo') { goHome(); return; }
+  if (t.id === 'closeInfo') { infoEl.hidden = true; return; }
   if (t.dataset.id && byId[t.dataset.id]) select(byId[t.dataset.id]);
 });
 
