@@ -125,7 +125,7 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
 <div id="app">
   <canvas id="gl" tabindex="0" aria-label="3D 太陽系，可拖曳旋轉、滾輪縮放、點選天體"></canvas>
   <div id="labels" aria-hidden="true"></div>
-  <div id="fail" hidden>無法載入 3D 引擎 (three.js)。請確認網路能連到 cdnjs.cloudflare.com、cdn.jsdelivr.net 或 unpkg.com，並暫時關閉擋廣告或內容過濾的外掛後重新整理。</div>
+  <div id="fail" hidden>無法載入 3D 引擎 (three.js)。請確認 three.min.js 與 index.html 放在同一個資料夾，或檢查網路是否能連線至 three.js CDN。</div>
 
   <div class="topbar">
     <div class="brand">
@@ -535,7 +535,7 @@ function SimpleOrbit(cam, el) {
     cam.position.copy(self.target).add(off);
   };
   el.addEventListener('wheel', function (e) {
-    e.preventDefault(); self.zoomBy(Math.exp(clamp(e.deltaY, -200, 200) * 0.0022));
+    e.preventDefault(); self.zoomBy(Math.exp(clamp(e.deltaY, -200, 200) * 0.004));
   }, { passive: false });
   this.update = function () {
     off.copy(cam.position).sub(this.target);
@@ -931,8 +931,8 @@ $('btnRev').addEventListener('click', function () { S.dir *= -1; this.setAttribu
 $('speed').addEventListener('input', function () { S.speed = +this.value; setSpeedLabel(); });
 $('btnNow').addEventListener('click', function () { S.t = nowDays(); });
 $('btnHome').addEventListener('click', goHome);
-$('btnZoomIn').addEventListener('click', function () { controls.zoomBy(0.7); });
-$('btnZoomOut').addEventListener('click', function () { controls.zoomBy(1 / 0.7); });
+ $('btnZoomIn').addEventListener('click', function () { controls.zoomBy(0.5); });
+ $('btnZoomOut').addEventListener('click', function () { controls.zoomBy(2); });
 $('btnClose').addEventListener('click', closeUp);
 /* 滾輪往前滾時，若游標對準某個天體，直接飛過去（全景時鏡頭鎖在太陽，否則推不近行星） */
 canvas.addEventListener('wheel', function (e) {
@@ -942,8 +942,8 @@ canvas.addEventListener('wheel', function (e) {
 }, { passive: true });
 document.addEventListener('keydown', function (e) {
   if (!/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) {
-    if (e.key === '+' || e.key === '=') controls.zoomBy(0.75);
-    else if (e.key === '-' || e.key === '_') controls.zoomBy(1 / 0.75);
+    if (e.key === '+' || e.key === '=') controls.zoomBy(0.5);
+    else if (e.key === '-' || e.key === '_') controls.zoomBy(2);
     else if (e.key === 'c' || e.key === 'C') closeUp();
   }
   if (e.code === 'Space' && !/INPUT|BUTTON|TEXTAREA/.test((document.activeElement || {}).tagName || '')) { e.preventDefault(); $('btnPlay').click(); }
@@ -1013,6 +1013,7 @@ requestAnimationFrame(function (n) { last = n; frame(n); });
 
 /* load three.js, trying several CDNs in turn */
 var SRC = [
+  './three.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
   'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
   'https://unpkg.com/three@0.128.0/build/three.min.js'
