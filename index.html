@@ -340,7 +340,7 @@ function gasTex(pal, bands, turb) {
   });
 }
 function earthTex() {
-  return paint(256, 128, function (u, v) {
+  var fallback = paint(256, 128, function (u, v) {
     var n = fbm(u, v, 4, 6), lat = Math.abs(v - 0.5) * 2, c;
     if (n > 0.5) c = mix([62, 108, 58], [158, 134, 92], (n - 0.5) * 3 + (fbm(u + 0.3, v, 10, 2) - 0.5));
     else c = mix([8, 26, 78], [22, 78, 142], n * 2);
@@ -349,6 +349,15 @@ function earthTex() {
     if (cl > 0.56) c = mix(c, [250, 250, 252], (cl - 0.56) * 4);
     return c;
   });
+  /* Keep a procedural fallback, but replace it with NASA's local Blue Marble map when available. */
+  var job = fallback._job, idx = job ? hiJobs.indexOf(job) : -1;
+  if (idx >= 0) hiJobs.splice(idx, 1);
+  fallback._job = null;
+  var image = new Image();
+  image.onload = function () { fallback.image = image; fallback.needsUpdate = true; };
+  image.onerror = function () { /* Keep the generated fallback if the image file is unavailable. */ };
+  image.src = './earth-blue-marble.jpg';
+  return fallback;
 }
 function marsTex() {
   return paint(256, 128, function (u, v) {
