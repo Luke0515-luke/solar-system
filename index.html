@@ -753,6 +753,14 @@ function closeUp() {
   if (window.matchMedia && window.matchMedia('(max-width: 640px)').matches) infoEl.hidden = true;
   focusOn(b, { dist: b.ring ? b.size * 5.5 : b.size * 3.2 });
 }
+function zoomIn() {
+  if (!sel && follow === sun) {
+    var rect = canvas.getBoundingClientRect();
+    var b = pick(rect.left + rect.width / 2, rect.top + rect.height / 2, false);
+    select(b && b !== sun ? b : byId.earth);
+  }
+  controls.zoomBy(0.5);
+}
 function refreshLines() {
   parents.forEach(function (p) { p.lineMat.opacity = (sel === p) ? 1 : 0.5; });
 }
@@ -853,8 +861,8 @@ function updateOverlay() {
     p.line.visible = S.planetOrbits;
     var active = sys === p;
     var base = S.moonOrbits;
-    p.moonLineReg.opacity = active ? 0.7 : 0.16;
-    p.moonLineIrr.opacity = active ? 0.55 : 0.1;
+    if (p.moonLineReg) p.moonLineReg.opacity = active ? 0.7 : 0.16;
+    if (p.moonLineIrr) p.moonLineIrr.opacity = active ? 0.55 : 0.1;
     p.moons.forEach(function (m) { m.line.visible = base && (S.irr || !m.irr); });
   });
 }
@@ -931,7 +939,7 @@ $('btnRev').addEventListener('click', function () { S.dir *= -1; this.setAttribu
 $('speed').addEventListener('input', function () { S.speed = +this.value; setSpeedLabel(); });
 $('btnNow').addEventListener('click', function () { S.t = nowDays(); });
 $('btnHome').addEventListener('click', goHome);
- $('btnZoomIn').addEventListener('click', function () { controls.zoomBy(0.5); });
+ $('btnZoomIn').addEventListener('click', zoomIn);
  $('btnZoomOut').addEventListener('click', function () { controls.zoomBy(2); });
 $('btnClose').addEventListener('click', closeUp);
 /* 滾輪往前滾時，若游標對準某個天體，直接飛過去（全景時鏡頭鎖在太陽，否則推不近行星） */
@@ -942,7 +950,7 @@ canvas.addEventListener('wheel', function (e) {
 }, { passive: true });
 document.addEventListener('keydown', function (e) {
   if (!/INPUT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) {
-    if (e.key === '+' || e.key === '=') controls.zoomBy(0.5);
+    if (e.key === '+' || e.key === '=') zoomIn();
     else if (e.key === '-' || e.key === '_') controls.zoomBy(2);
     else if (e.key === 'c' || e.key === 'C') closeUp();
   }
