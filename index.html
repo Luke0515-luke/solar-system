@@ -641,7 +641,7 @@ var S = { t: Number.isFinite(+savedPrefs.t) ? +savedPrefs.t : nowDays(), playing
   belt: savedPrefs.belt !== false, followLock: savedPrefs.followLock !== false, trails: savedPrefs.trails === true, interiorId: null, lang: savedPrefs.lang === 'en' ? 'en' : 'zh' };
 var SUN_R = 4;
 var REAL_AU_SCALE = SUN_R * 149597870.7 / 695700;
-function mapAU(r) { return S.dist === 'comp' ? 12 * Math.pow(r, 0.6) : S.dist === 'real' ? REAL_AU_SCALE * r : 25 * r; }
+function mapAU(r) { return S.dist === 'comp' ? 22 * Math.pow(r, 0.6) : S.dist === 'real' ? REAL_AU_SCALE * r : 25 * r; }
 function bodySize(R) { return S.dist === 'real' ? SUN_R * R / 695700 : 1.5 * Math.max(0.3, 0.9 * Math.pow(R / 6371, 0.45)); }
 
 /* ---------- three.js scene ---------- */
