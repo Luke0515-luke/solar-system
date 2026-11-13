@@ -17,4 +17,8 @@ Mission-era orbit reference pages: [NASA LRO](https://science.nasa.gov/mission/l
 - The time bar includes **即時**, **1 日/秒**, and **1 年/秒** presets. The former speed-slider values are migrated when saved preferences are loaded.
 - Planet information includes a simplified internal-structure diagram, labeled as not to scale. Comparison shows two selected bodies with diameter-proportional disks plus the existing measurements table.
 
+## Scale modes
+
+The default **物理比例** mode uses one common unit scale: the Sun radius is 4 scene units, 1 AU is about 860.0 scene units, and every planet and moon radius is converted from kilometers using the same factor. Planetary and lunar orbit distances therefore remain in physical proportion to their bodies. Planets are nearly invisible in the full-system overview by design; use the visible labels/search or select a planet to zoom in. The planet-size and moon-orbit expansion sliders are disabled in this mode. **AU 線性距離** keeps linear AU spacing while enlarging planets, and **展示模式** compresses distances for readability. Older saved default settings are migrated to physical scale; a previously chosen compressed view is preserved.
+
 The atmosphere, solar animation, star-band clustering, and body scale diagrams are illustrative visualizations, not photorealistic or scale-complete scientific renders.

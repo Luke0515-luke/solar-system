@@ -188,6 +188,7 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
         <label for="planetScale"><span id="planetScaleLabel">顯示比例</span><span id="planetScaleVal">1.0×</span></label>
         <input type="range" id="planetScale" min="0.5" max="3" step="0.1" value="1" aria-label="行星顯示比例">
       </div>
+      <p class="note" id="scaleModeNote">物理比例模式會以太陽半徑與行星軌道的同一尺度顯示；行星在全景中會非常小。</p>
     </div>
     <div class="group">
       <h3>顯示</h3>
@@ -201,8 +202,9 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
     </div>
     <div class="group">
       <h3>行星間距</h3>
-      <label class="radio"><input type="radio" name="dist" value="comp">展示壓縮（方便看清全部行星）</label>
-      <label class="radio"><input type="radio" name="dist" value="lin" checked>依 AU 比例（行星間距較符合實際）</label>
+      <label class="radio"><input type="radio" name="dist" value="comp"><span id="distCompLabel">展示模式（壓縮距離、放大行星）</span></label>
+      <label class="radio"><input type="radio" name="dist" value="lin"><span id="distLinearLabel">AU 線性距離（放大行星）</span></label>
+      <label class="radio"><input type="radio" name="dist" value="real"><span id="distRealLabel">物理比例（太陽、行星與距離同尺度）</span></label>
     </div>
     <div class="group">
       <h3>衛星軌道</h3>
@@ -632,15 +634,15 @@ var savedPrefs = {};
 try { savedPrefs = JSON.parse(localStorage.getItem('solar-system-settings') || '{}') || {}; } catch (err) { savedPrefs = {}; }
 var storedSpeed=Number.isFinite(+savedPrefs.speed)?(savedPrefs.speedVersion===1?clamp(+savedPrefs.speed,0,8):clamp(+savedPrefs.speed,0,7)+1):6;
 var S = { t: Number.isFinite(+savedPrefs.t) ? +savedPrefs.t : nowDays(), playing: savedPrefs.playing === true && !reduceMotion, dir: savedPrefs.dir === -1 ? -1 : 1, speed: clamp(storedSpeed, 0, 8),
-  dist: savedPrefs.dist === 'comp' ? 'comp' : 'lin', moonScale: clamp(+savedPrefs.moonScale || 1, 0.4, 2),
+  dist: savedPrefs.scaleVersion===1 ? (savedPrefs.dist==='comp'?'comp':savedPrefs.dist==='lin'?'lin':'real') : savedPrefs.dist==='comp'?'comp':'real', moonScale: clamp(+savedPrefs.moonScale || 1, 0.4, 2),
   planetScale: clamp(+savedPrefs.planetScale || 1, 0.5, 3), planetOrbits: savedPrefs.planetOrbits !== false,
   moonOrbits: savedPrefs.moonOrbits !== false, cometOrbits: savedPrefs.cometOrbits !== false,
   cometMode: savedPrefs.cometMode === true && savedPrefs.missionMode !== true, missionMode: savedPrefs.missionMode === true, irr: savedPrefs.irr !== false, labels: savedPrefs.labels !== false,
   belt: savedPrefs.belt !== false, followLock: savedPrefs.followLock !== false, trails: savedPrefs.trails === true, interiorId: null, lang: savedPrefs.lang === 'en' ? 'en' : 'zh' };
 var SUN_R = 4;
-function mapAU(r) { return S.dist === 'comp' ? 12 * Math.pow(r, 0.6) : 25 * r; }
-var PLANET_SCALE = 1.5; /* 行星顯示比例：越大越容易看清楚 */
-function bodySize(R) { return PLANET_SCALE * Math.max(0.3, 0.9 * Math.pow(R / 6371, 0.45)); }
+var REAL_AU_SCALE = SUN_R * 149597870.7 / 695700;
+function mapAU(r) { return S.dist === 'comp' ? 12 * Math.pow(r, 0.6) : S.dist === 'real' ? REAL_AU_SCALE * r : 25 * r; }
+function bodySize(R) { return S.dist === 'real' ? SUN_R * R / 695700 : 1.5 * Math.max(0.3, 0.9 * Math.pow(R / 6371, 0.45)); }
 
 /* ---------- three.js scene ---------- */
 var canvas = document.getElementById('gl'), app = document.getElementById('app'), labelsEl = document.getElementById('labels');
@@ -648,12 +650,12 @@ var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, preser
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0x050812, 1);
 var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera(48, 1, 0.01, 100000);
+var camera = new THREE.PerspectiveCamera(48, 1, 0.01, 1000000);
 camera.position.set(0, 120, 200);
 /* minimal orbit controls: drag to rotate, wheel / pinch to zoom */
 function SimpleOrbit(cam, el) {
   var self = this, dTheta = 0, dPhi = 0, pointers = {}, pinch0 = 0, off = new THREE.Vector3();
-  this.target = new THREE.Vector3(); this.minDistance = 1; this.maxDistance = 50000;
+  this.target = new THREE.Vector3(); this.minDistance = 1; this.maxDistance = 300000;
   this.rotateSpeed = 0.7; this.dampingFactor = 0.08; this.enableDamping = true; this.enablePan = false;
   function pinchDist() {
     var ids = Object.keys(pointers); if (ids.length < 2) return 0;
@@ -701,7 +703,7 @@ function SimpleOrbit(cam, el) {
 }
 var controls = new SimpleOrbit(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08; controls.enablePan = false;
-controls.rotateSpeed = 0.7; controls.maxDistance = 50000; controls.minDistance = 4;
+controls.rotateSpeed = 0.7; controls.maxDistance = 300000; controls.minDistance = 4;
 
 scene.add(new THREE.AmbientLight(0x3a4668, 1.05));
 var sunLight = new THREE.PointLight(0xfff1dc, 1.55, 0);
@@ -750,7 +752,7 @@ function makeMoonFrame(p) { return { eq: p.tilt, ecl: p.grp }; }
 
 function buildBody(d) {
   var b = addBody(d);
-  b.baseSize = bodySize(b.R); b.size = b.baseSize * S.planetScale;
+  b.baseSize = bodySize(b.R); b.size = b.baseSize * (S.dist==='real'?1:S.planetScale);
   b.moons = [];
   b.grp = new THREE.Group(); scene.add(b.grp);
   b.tilt = new THREE.Group(); b.tilt.rotation.z = b.ob * D2R; b.grp.add(b.tilt);
@@ -772,7 +774,7 @@ function buildBody(d) {
     var pos = geo.attributes.position, uv = geo.attributes.uv, v3 = new THREE.Vector3();
     for (var k = 0; k < pos.count; k++) { v3.fromBufferAttribute(pos, k); uv.setXY(k, (v3.length() - inner) / (outer - inner), 1); }
     var ring = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: ringTex(), transparent: true, side: THREE.DoubleSide, roughness: 1, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(S.planetScale); b.tilt.add(ring); b.ringMesh = ring;
+    ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(1); b.tilt.add(ring); b.ringMesh = ring; b.ringGeoSize=b.size;
   }
   return b;
 }
@@ -817,7 +819,7 @@ parents.forEach(function (p) {
       m.om = base.om; m.w = base.w; m.M0 = base.M0 + extra.lock[1];
       m.approx = true; /* L4/L5 libration represented by a fixed 60-degree offset */
     }
-    m.size = clamp(0.28 * p.baseSize * Math.sqrt(m.R / p.R), 0.045, 0.5);
+    m.size = S.dist==='real' ? SUN_R*m.R/695700 : clamp(0.28 * p.baseSize * Math.sqrt(m.R / p.R), 0.045, 0.5);
     m.col = m.irr ? '#b3a8f0' : '#9fd4ff';
     var mat = new THREE.MeshStandardMaterial({ map: tex('rock'), roughness: 1, metalness: 0 });
     mat.color.set(MOON_TINT[m.en] || (m.irr ? '#8f8a85' : '#bdb8b0'));
@@ -867,6 +869,7 @@ function buildCometLine(c) {
   c.line.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
 }
 function moonMap(m, v) {
+  if(S.dist==='real'){var actualScale=SUN_R/695700;return [v[0]*actualScale,v[2]*actualScale,-v[1]*actualScale];}
   var p = m.parent, x = m.a / p.R;
   var g = x <= 2.6 ? x : 2.6 + Math.log(x / 2.6);
   var mm = p.baseSize * (1 + (g - 1) * S.moonScale), k = mm / m.a;
@@ -896,6 +899,8 @@ function computeSysR() {
 }
 function rebuildPlanetLines() { parents.forEach(buildPlanetLine); }
 function rebuildMoonLines() { moonList.forEach(buildMoonLine); computeSysR(); }
+function syncScaleControls(){var physical=S.dist==='real';$('planetScale').disabled=physical;$('moonScale').disabled=physical;$('scaleModeNote').textContent=physical?(S.lang==='zh'?'物理比例：太陽半徑、行星大小與公轉距離共用同一尺度；全景中行星會很小。':'Physical scale: the Sun, planets, and orbital distances share one scale; planets appear tiny in overview.'):(S.lang==='zh'?'展示模式會放大行星；AU 線性模式保留行星間距比例，展示模式則會壓縮間距。':'Display modes enlarge planets; AU-linear mode keeps orbital spacing, while overview mode compresses it.');}
+function applyScaleMode(){var physical=S.dist==='real';parents.forEach(function(b){b.baseSize=bodySize(b.R);b.size=b.baseSize*(physical?1:S.planetScale);b.mesh.scale.setScalar(b.size);if(b.atmosphere)b.atmosphere.scale.setScalar(b.size*1.09);if(b.ringMesh)b.ringMesh.scale.setScalar(b.size/(b.ringGeoSize||b.size));});moonList.forEach(function(m){m.size=physical?SUN_R*m.R/695700:clamp(.28*m.parent.baseSize*Math.sqrt(m.R/m.parent.R),.045,.5);m.mesh.scale.setScalar(m.size);});rebuildPlanetLines();rebuildMoonLines();cometList.forEach(buildCometLine);missionList.forEach(function(m){setMissionSize(m);var points=m.mission.points,arr=new Float32Array(points.length*3);points.forEach(function(p,i){arr.set(helio(p.slice(1)),i*3);});m.track.geometry.dispose();m.track.geometry=new THREE.BufferGeometry();m.track.geometry.setAttribute('position',new THREE.BufferAttribute(arr,3));m._orbitGeometryTime=null;});syncScaleControls();}
 rebuildPlanetLines(); rebuildMoonLines();
 
 /* Mission catalogue and playback, after planet and moon bodies exist. */
@@ -1275,7 +1280,7 @@ canvas.addEventListener('pointermove', function (e) {
 var $ = function (id) { return document.getElementById(id); };
 var compareItems = [], tourTimer = null, tourIndex = 0;
 function savePrefs() {
-  try { localStorage.setItem('solar-system-settings', JSON.stringify({ speedVersion:1,t:S.t, playing:S.playing, dir:S.dir, speed:S.speed, dist:S.dist, moonScale:S.moonScale, planetScale:S.planetScale, planetOrbits:S.planetOrbits, moonOrbits:S.moonOrbits, cometOrbits:S.cometOrbits, cometMode:S.cometMode, missionMode:S.missionMode, irr:S.irr, labels:S.labels, belt:S.belt, followLock:S.followLock,trails:S.trails,lang:S.lang })); } catch (err) {}
+  try { localStorage.setItem('solar-system-settings', JSON.stringify({ speedVersion:1,scaleVersion:1,t:S.t, playing:S.playing, dir:S.dir, speed:S.speed, dist:S.dist, moonScale:S.moonScale, planetScale:S.planetScale, planetOrbits:S.planetOrbits, moonOrbits:S.moonOrbits, cometOrbits:S.cometOrbits, cometMode:S.cometMode, missionMode:S.missionMode, irr:S.irr, labels:S.labels, belt:S.belt, followLock:S.followLock,trails:S.trails,lang:S.lang })); } catch (err) {}
 }
 function syncLocation() {
   var hash = '#' + encodeURIComponent(sel ? sel.id : (follow && follow !== sun ? follow.id : 'sun')) + '?date=' + new Date(J2000_MS + S.t * 86400000).toISOString().slice(0,10) + '&mode=' + (S.missionMode ? 'missions' : S.cometMode ? 'comets' : 'planets');
@@ -1309,6 +1314,7 @@ function toggleLanguage() {
   $('btnLayers').textContent = S.lang === 'zh' ? '圖層' : 'Layers'; $('btnFullscreen').textContent = S.lang === 'zh' ? '全螢幕' : 'Fullscreen'; $('btnScreenshot').textContent = S.lang === 'zh' ? '截圖' : 'Screenshot';
   $('dateLabel').textContent = S.lang === 'zh' ? '日期' : 'Date'; $('perihelionLabel').textContent = S.lang === 'zh' ? '近日點' : 'Perihelion'; $('btnTour').textContent = S.lang === 'zh' ? '導覽' : 'Tour'; $('btnNow').textContent = S.lang === 'zh' ? '現在' : 'Now'; $('btnHome').textContent = S.lang === 'zh' ? '全景' : 'Overview'; $('btnClose').textContent = S.lang === 'zh' ? '特寫' : 'Close-up'; $('planetScaleLabel').textContent = S.lang === 'zh' ? '顯示比例' : 'Size scale';
   $('speedRealtime').textContent=S.lang==='zh'?'即時':'Realtime';$('speedDay').textContent=S.lang==='zh'?'1 日/秒':'1 day/sec';$('speedYear').textContent=S.lang==='zh'?'1 年/秒':'1 year/sec';$('optFollow').parentElement.lastChild.textContent=S.lang==='zh'?'跟隨選取天體':'Follow selected body';$('optTrails').parentElement.lastChild.textContent=S.lang==='zh'?'顯示歷史軌跡殘影':'Show recent orbit trails';
+  $('distCompLabel').textContent=S.lang==='zh'?'展示模式（壓縮距離、放大行星）':'Display (compressed distances, enlarged planets)';$('distLinearLabel').textContent=S.lang==='zh'?'AU 線性距離（放大行星）':'AU-linear distance (enlarged planets)';$('distRealLabel').textContent=S.lang==='zh'?'物理比例（太陽、行星與距離同尺度）':'Physical scale (Sun, planets, and distances)';syncScaleControls();
   $('q').placeholder = S.lang === 'zh' ? '搜尋天體' : 'Search bodies'; $('q').setAttribute('aria-label', $('q').placeholder);
   bodies.forEach(function(b){if(b.tag){var span=b.tag.querySelector('span');if(span)span.textContent=S.lang==='zh'?b.zh:b.en;}});
   var selectedMission=$('missionSelect').value;$('missionSelect').innerHTML=missionList.map(function(m){return '<option value="'+m.id+'">'+(S.lang==='zh'?m.zh:m.en)+'</option>';}).join('');if(selectedMission)$('missionSelect').value=selectedMission;
@@ -1331,7 +1337,7 @@ $('btnNow').addEventListener('click', function(){ setDatePicker(); syncLocation(
 $('perihelionJump').innerHTML = '<option value="">選擇彗星近日點</option>' + cometList.map(function(c){return '<option value="'+c.id+'">'+c.zh+' · '+new Date((c.tpJD-2440587.5)*86400000).toISOString().slice(0,10)+'</option>';}).join('');
 $('perihelionJump').addEventListener('change', function(){var c=byId[this.value];if(!c)return;setViewMode(true);S.t=c.tpDays;resetTrailHistory();S.playing=false;setPlayLabel();select(c);setDatePicker();syncLocation();this.value='';});
 $('planetScale').value=S.planetScale; $('planetScaleVal').textContent=nf(S.planetScale,1)+'×';
-$('planetScale').addEventListener('input',function(){S.planetScale=+this.value;$('planetScaleVal').textContent=nf(S.planetScale,1)+'×';parents.forEach(function(b){b.size=b.baseSize*S.planetScale;b.mesh.scale.setScalar(b.size);if(b.atmosphere)b.atmosphere.scale.setScalar(b.size*1.09);if(b.ringMesh)b.ringMesh.scale.setScalar(S.planetScale);});missionList.forEach(function(m){setMissionSize(m);m._orbitGeometryTime=null;});savePrefs();});
+$('planetScale').addEventListener('input',function(){if(S.dist==='real')return;S.planetScale=+this.value;$('planetScaleVal').textContent=nf(S.planetScale,1)+'×';parents.forEach(function(b){b.size=b.baseSize*S.planetScale;b.mesh.scale.setScalar(b.size);if(b.atmosphere)b.atmosphere.scale.setScalar(b.size*1.09);if(b.ringMesh)b.ringMesh.scale.setScalar(b.size/(b.ringGeoSize||b.size));});missionList.forEach(function(m){setMissionSize(m);m._orbitGeometryTime=null;});savePrefs();});
 $('btnLanguage').addEventListener('click',toggleLanguage);
 $('btnFullscreen').addEventListener('click',function(){if(document.fullscreenElement)document.exitFullscreen();else if(app.requestFullscreen)app.requestFullscreen();});
 document.addEventListener('fullscreenchange',function(){ $('btnFullscreen').textContent=document.fullscreenElement?(S.lang==='zh'?'退出全螢幕':'Exit fullscreen'):(S.lang==='zh'?'全螢幕':'Fullscreen'); resize(); });
@@ -1382,7 +1388,7 @@ $('missionSelect').addEventListener('change',function(){var m=byId[this.value];i
 Array.prototype.forEach.call(document.querySelectorAll('input[name=dist]'), function (r) {
   r.addEventListener('change', function () {
     if (!this.checked) return;
-    S.dist = this.value; rebuildPlanetLines();
+    S.dist = this.value; applyScaleMode(); resetTrailHistory();
     savePrefs();
     if (!sel) goHome(); else focusOn(sel);
   });
@@ -1427,7 +1433,7 @@ $('speed').value = S.speed;
 $('moonScale').value = S.moonScale; $('moonScaleVal').textContent = nf(S.moonScale,1)+'×';
 ['optPlanetOrbits','optMoonOrbits','optCometOrbits','optIrr','optLabels','optBelt'].forEach(function(id){var map={optPlanetOrbits:S.planetOrbits,optMoonOrbits:S.moonOrbits,optCometOrbits:S.cometOrbits,optIrr:S.irr,optLabels:S.labels,optBelt:S.belt};$(id).checked=map[id];});$('optFollow').checked=S.followLock;$('optTrails').checked=S.trails;
 $('optCometOrbits').checked=S.cometOrbits; $('optLabels').checked=S.labels; labelsEl.classList.toggle('nolabels',!S.labels);
-Array.prototype.forEach.call(document.querySelectorAll('input[name=dist]'),function(r){r.checked=r.value===S.dist;});
+Array.prototype.forEach.call(document.querySelectorAll('input[name=dist]'),function(r){r.checked=r.value===S.dist;});syncScaleControls();
 Array.prototype.forEach.call(document.querySelectorAll('input[name=viewMode]'),function(r){r.checked=r.value===(S.missionMode?'missions':S.cometMode?'comets':'planets');});
 $('cometOptions').hidden=!S.cometMode; $('missionOptions').hidden=!S.missionMode; setDatePicker(); if(S.lang==='en'){S.lang='zh';toggleLanguage();}
 var bootWanted=null;try { var hashState=location.hash.slice(1), parts=hashState.split('?'), id=decodeURIComponent(parts[0]||''), params=new URLSearchParams(parts[1]||''); if(params.get('date'))S.t=(Date.parse(params.get('date')+'T12:00:00Z')-J2000_MS)/86400000; if(params.get('mode')){S.missionMode=params.get('mode')==='missions';S.cometMode=params.get('mode')==='comets';} var wanted=byId[id]; if(wanted){bootWanted=wanted;if(wanted.kind==='mission'&&!S.missionMode)setViewMode('missions',false);else if(wanted.kind==='comet'&&!S.cometMode)setViewMode('comets',false);else if(wanted.kind!=='comet'&&wanted.kind!=='mission'&&(S.cometMode||S.missionMode))setViewMode('planets',false);if(wanted.kind==='mission')$('missionSelect').value=wanted.id;} } catch(err) {}
