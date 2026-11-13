@@ -104,6 +104,7 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
 .clock small { font-size: 12px; color: var(--muted); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .controls input[type=range] { width: 130px; }
+.speed-preset { min-height:32px; padding:5px 8px; font-size:12px; }
 .date-control { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .date-control input, .date-control select { min-height: 36px; max-width: 150px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--fg); }
 #compare { top: 64px; left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 32px)); max-height: 34%; padding: 12px 14px; }
@@ -111,6 +112,15 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
 #compare th, #compare td { padding: 5px 7px; border-bottom: 1px solid var(--line-soft); text-align: right; }
 #compare th:first-child, #compare td:first-child { text-align: left; color: var(--muted); }
 #compare .head { margin-bottom: 8px; }
+.compare-visual { display:flex; align-items:flex-end; justify-content:space-around; gap:12px; padding:12px 4px 8px; border-bottom:1px solid var(--line-soft); }
+.compare-visual figure { flex:1; margin:0; display:grid; justify-items:center; gap:6px; min-width:0; }
+.compare-visual .sphere { width:var(--diam); height:var(--diam); max-width:100%; max-height:100px; border-radius:50%; background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.9),var(--body-color) 35%,#070b14 100%); box-shadow:inset -5px -4px 12px #0009,0 0 12px color-mix(in srgb,var(--body-color) 30%,transparent); }
+.compare-visual figcaption { color:var(--muted); text-align:center; font-size:12px; }
+.interior-box { margin:12px 0; padding:10px; border:1px solid var(--line-soft); border-radius:8px; background:#060a14a8; }
+.interior-diagram { display:block; width:150px; height:150px; margin:0 auto 8px; }
+.interior-legend { display:grid; gap:4px; font-size:12px; }
+.interior-legend div { display:flex; gap:8px; align-items:center; }
+.interior-legend i { width:10px; height:10px; border-radius:50%; flex:none; }
 
 .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 12px; text-align: center; pointer-events: none; transition: opacity 0.6s; z-index: 3; }
 .toast.gone { opacity: 0; }
@@ -186,6 +196,8 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
       <label class="check"><input type="checkbox" id="optIrr" checked>不規則衛星</label>
       <label class="check"><input type="checkbox" id="optLabels" checked>名稱標籤</label>
       <label class="check"><input type="checkbox" id="optBelt" checked>小行星帶</label>
+      <label class="check"><input type="checkbox" id="optFollow" checked>跟隨選取天體</label>
+      <label class="check"><input type="checkbox" id="optTrails">顯示歷史軌跡殘影</label>
     </div>
     <div class="group">
       <h3>行星間距</h3>
@@ -218,7 +230,10 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
       <button class="btn" id="btnTour">導覽</button>
       <button class="btn primary" id="btnPlay">暫停</button>
       <button class="btn" id="btnRev" aria-pressed="false">反向</button>
-      <input type="range" id="speed" min="0" max="7" step="1" value="5" aria-label="模擬速度">
+      <button class="btn speed-preset" id="speedRealtime" aria-label="即時速度">即時</button>
+      <button class="btn speed-preset" id="speedDay" aria-label="一天每秒">1 日/秒</button>
+      <button class="btn speed-preset" id="speedYear" aria-label="一年每秒">1 年/秒</button>
+      <input type="range" id="speed" min="0" max="8" step="1" value="6" aria-label="模擬速度">
       <button class="btn" id="btnNow">現在</button>
       <button class="btn" id="btnHome">全景</button>
       <button class="btn" id="btnZoomOut" aria-label="縮小">－</button>
@@ -611,16 +626,17 @@ var MOON_TINT = { Moon: '#d2d0cb', Io: '#e8d06a', Europa: '#dccfb6', Ganymede: '
 
 /* ---------- state ---------- */
 var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-var SPEEDS = [1 / 24, 0.25, 1, 3, 10, 30, 365.25, 3652.5];
-var SPEED_LABELS = ['1 小時 / 秒', '6 小時 / 秒', '1 天 / 秒', '3 天 / 秒', '10 天 / 秒', '30 天 / 秒', '1 年 / 秒', '10 年 / 秒'];
+var SPEEDS = [1 / 86400, 1 / 24, 0.25, 1, 3, 10, 30, 365.25, 3652.5];
+var SPEED_LABELS = ['即時', '1 小時 / 秒', '6 小時 / 秒', '1 天 / 秒', '3 天 / 秒', '10 天 / 秒', '30 天 / 秒', '1 年 / 秒', '10 年 / 秒'];
 var savedPrefs = {};
 try { savedPrefs = JSON.parse(localStorage.getItem('solar-system-settings') || '{}') || {}; } catch (err) { savedPrefs = {}; }
-var S = { t: Number.isFinite(+savedPrefs.t) ? +savedPrefs.t : nowDays(), playing: savedPrefs.playing === true && !reduceMotion, dir: savedPrefs.dir === -1 ? -1 : 1, speed: clamp(+savedPrefs.speed || 5, 0, 7),
+var storedSpeed=Number.isFinite(+savedPrefs.speed)?(savedPrefs.speedVersion===1?clamp(+savedPrefs.speed,0,8):clamp(+savedPrefs.speed,0,7)+1):6;
+var S = { t: Number.isFinite(+savedPrefs.t) ? +savedPrefs.t : nowDays(), playing: savedPrefs.playing === true && !reduceMotion, dir: savedPrefs.dir === -1 ? -1 : 1, speed: clamp(storedSpeed, 0, 8),
   dist: savedPrefs.dist === 'comp' ? 'comp' : 'lin', moonScale: clamp(+savedPrefs.moonScale || 1, 0.4, 2),
   planetScale: clamp(+savedPrefs.planetScale || 1, 0.5, 3), planetOrbits: savedPrefs.planetOrbits !== false,
   moonOrbits: savedPrefs.moonOrbits !== false, cometOrbits: savedPrefs.cometOrbits !== false,
   cometMode: savedPrefs.cometMode === true && savedPrefs.missionMode !== true, missionMode: savedPrefs.missionMode === true, irr: savedPrefs.irr !== false, labels: savedPrefs.labels !== false,
-  belt: savedPrefs.belt !== false, lang: savedPrefs.lang === 'en' ? 'en' : 'zh' };
+  belt: savedPrefs.belt !== false, followLock: savedPrefs.followLock !== false, trails: savedPrefs.trails === true, interiorId: null, lang: savedPrefs.lang === 'en' ? 'en' : 'zh' };
 var SUN_R = 4;
 function mapAU(r) { return S.dist === 'comp' ? 12 * Math.pow(r, 0.6) : 25 * r; }
 var PLANET_SCALE = 1.5; /* 行星顯示比例：越大越容易看清楚 */
@@ -707,6 +723,11 @@ starGeo.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
 var stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 1.5, sizeAttenuation: false, vertexColors: true, depthWrite: false }));
 stars.renderOrder = -10; stars.frustumCulled = false;
 scene.add(stars);
+/* A softly clustered great-circle band gives the star field a Milky Way-like depth. */
+var MW_N=5200,mwPos=new Float32Array(MW_N*3),mwCol=new Float32Array(MW_N*3),mwr=rngFrom('milky-way'),mwTilt=62*D2R;
+for(var mi=0;mi<MW_N;mi++){var ma=mwr()*TAU,normal=(mwr()+mwr()+mwr()-1.5)*155,rad=4600+mwr()*1200,clump=.35+.65*Math.pow(Math.max(0,Math.sin(ma*9+normal*.003)),2),idx=mi*3;var x=rad*Math.cos(ma),y=normal,z=rad*Math.sin(ma);mwPos[idx]=x;mwPos[idx+1]=y*Math.cos(mwTilt)-z*Math.sin(mwTilt);mwPos[idx+2]=y*Math.sin(mwTilt)+z*Math.cos(mwTilt);var warm=mwr();mwCol[idx]=clump*(.62+.35*warm);mwCol[idx+1]=clump*(.66+.22*warm);mwCol[idx+2]=clump*(.78-.25*warm);}
+var mwGeo=new THREE.BufferGeometry();mwGeo.setAttribute('position',new THREE.BufferAttribute(mwPos,3));mwGeo.setAttribute('color',new THREE.BufferAttribute(mwCol,3));
+var milkyWay=new THREE.Points(mwGeo,new THREE.PointsMaterial({size:2.2,sizeAttenuation:false,vertexColors:true,transparent:true,opacity:.24,depthWrite:false}));milkyWay.renderOrder=-12;milkyWay.frustumCulled=false;scene.add(milkyWay);
 
 /* bodies */
 var bodies = [], byId = {};
@@ -717,9 +738,10 @@ var sun = addBody({ id: 'sun', kind: 'sun', zh: '太陽', en: 'Sun', R: 695700, 
   var g = new THREE.Group(); scene.add(g);
   var m = new THREE.Mesh(sphereHi, new THREE.MeshBasicMaterial({ map: tex('sun') }));
   m.scale.setScalar(SUN_R); g.add(m);
+  sun.glows=[];
   [[SUN_R * 7, 0.9], [SUN_R * 16, 0.4]].forEach(function (p) {
     var sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: p[1] }));
-    sp.scale.setScalar(p[0]); g.add(sp);
+    sp.scale.setScalar(p[0]); g.add(sp); sun.glows.push({sprite:sp,base:p[0],opacity:p[1]});
   });
   sun.obj = g; sun.mesh = m;
 })();
@@ -735,6 +757,8 @@ function buildBody(d) {
   var mat = new THREE.MeshStandardMaterial({ map: tex(b.tex || 'rock'), roughness: 1, metalness: 0 });
   if (b.tint) mat.color.set(b.tint);
   b.mesh = new THREE.Mesh(sphereHi, mat); b.mesh.scale.setScalar(b.size); b.tilt.add(b.mesh);
+  var atmosphereColors={earth:0x62c8ff,venus:0xffc875,saturn:0xf2d89a};
+  if(atmosphereColors[b.id]){b.atmosphere=new THREE.Mesh(sphereLo,new THREE.MeshBasicMaterial({color:atmosphereColors[b.id],transparent:true,opacity:b.id==='earth'?.2:.14,side:THREE.BackSide,blending:THREE.AdditiveBlending,depthWrite:false}));b.atmosphere.scale.setScalar(b.size*1.09);b.atmosphere.renderOrder=2;b.tilt.add(b.atmosphere);}
   b.obj = b.grp;
   b.nDay = TAU / (b.P * 365.25);
   b.M0 = (b.L - b.w) * D2R;
@@ -930,6 +954,11 @@ function missionAt(b,t){var p=b.mission.points;if(!p||!p.length)return [0,0,0];v
 function missionOrbitAt(b,t){var o=b.mission.orbit,a=o.a,e=o.e,i=o.i,cycles;if(o.initial&&o.settledDays> b.mission.arrivalDays){var t0=b.mission.arrivalDays,t1=o.settledDays,dur=t1-t0,k=(o.a-o.initial.a)/dur,clamped=clamp(t,t0,t1),u=(clamped-t0)/dur;a=o.initial.a+(o.a-o.initial.a)*u;e=o.initial.e+(o.e-o.initial.e)*u;i=o.initial.i+(o.i-o.initial.i)*u;var period=o.period*Math.pow(a/o.a,1.5),factor=-2*Math.pow(o.a,1.5)/(o.period*k),initialCycles=factor*(1/Math.sqrt(a)-1/Math.sqrt(o.initial.a));cycles=t<=t1?initialCycles:(factor*(1/Math.sqrt(o.a)-1/Math.sqrt(o.initial.a))+(t-t1)/o.period);return{a:a,e:e,i:i,period:period,phase:TAU*cycles};}cycles=(t-b.mission.arrivalDays)/o.period;return{a:a,e:e,i:i,period:o.period,phase:TAU*cycles};}
 var MISSION_ORBIT_AXIS=new THREE.Vector3(1,0,0);function missionOffset(b,t,out,quat){var o=missionOrbitAt(b,t),E=kepler(o.phase,o.e);out.set(o.a*(Math.cos(E)-o.e),0,o.a*Math.sqrt(1-o.e*o.e)*Math.sin(E)).multiplyScalar(b.targetBody.size).applyAxisAngle(MISSION_ORBIT_AXIS,o.i*D2R);if(!quat){var frame=b.targetBody.kind==='moon'?b.targetBody.obj:b.targetBody.tilt;b.targetBody.obj.updateWorldMatrix(true,false);quat=new THREE.Quaternion();(frame||b.targetBody.obj).getWorldQuaternion(quat);}return out.applyQuaternion(quat);}
 
+var trailBodies=parents.concat(cometList);
+trailBodies.forEach(function(b){b.trailData=[];b.trailLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:new THREE.Color(b.col),transparent:true,opacity:.58,depthWrite:false}));b.trailLine.frustumCulled=false;b.trailLine.visible=false;scene.add(b.trailLine);});
+function resetTrailHistory(){trailBodies.forEach(function(b){b.trailData.length=0;b._trailT=null;if(b.trailLine.geometry)b.trailLine.geometry.dispose();b.trailLine.geometry=new THREE.BufferGeometry();});}
+function updateTrail(b){if(!S.trails||!S.playing)return;var step=Math.max(1/1440,SPEEDS[S.speed]*.04);if(b._trailT!==null&&Math.abs(S.t-b._trailT)<step)return;if(b._trailT!==null&&Math.abs(S.t-b._trailT)>step*8)b.trailData.length=0;b.trailData.push({t:S.t,x:b.grp.position.x,y:b.grp.position.y,z:b.grp.position.z});if(b.trailData.length>220)b.trailData.shift();b._trailT=S.t;var points=b.trailData.map(function(p){return new THREE.Vector3(p.x,p.y,p.z);});b.trailLine.geometry.dispose();b.trailLine.geometry=new THREE.BufferGeometry().setFromPoints(points);}
+
 
 /* asteroid belt */
 var BELT_N = 2600, belt = [], beltPos = new Float32Array(BELT_N * 3), br2 = rngFrom('belt');
@@ -976,6 +1005,7 @@ function focusOn(b, opts) {
   fly = { t: 0, from: controls.target.clone(), fromD: Math.max(cur, 0.05), toD: opts.dist || focusDist(b), toDir: opts.dir || null, fromDir: camera.position.clone().sub(controls.target).normalize() };
   controls.minDistance = minDist(b);
 }
+function focusSelection(b){if(!S.followLock&&(b.kind==='planet'||b.kind==='dwarf')){follow=sun;var d=clamp(Math.max(mapAU((b.a||1)*1.25),mapAU(1.8)*1.5),15,controls.maxDistance*.85);focusOn(sun,{dist:d,dir:new THREE.Vector3(0,.55,.84).normalize()});}else focusOn(b);}
 function select(b) {
   if (b.kind === 'mission' && !S.missionMode) setViewMode('missions',false);
   else if (b.kind !== 'mission' && S.missionMode) setViewMode(b.kind === 'comet' ? 'comets' : 'planets',false);
@@ -985,10 +1015,10 @@ function select(b) {
   sel = b === sun ? sun : b;
   if(b.kind==='mission'){
     loadMissionModel(b);$('missionSelect').value=b.id;
-    if(select.lastMission!==b.id){var mp=b.mission.points||[],first=mp.length?mp[0][0]:S.t;S.t=first;S.speed=0;$('speed').value=S.speed;S.playing=true;setPlayLabel();select.lastMission=b.id;}
+    if(select.lastMission!==b.id){var mp=b.mission.points||[],first=mp.length?mp[0][0]:S.t;S.t=first;S.speed=1;$('speed').value=S.speed;S.playing=true;setPlayLabel();select.lastMission=b.id;}
   } else select.lastMission=null;
   if (b.mesh && b.mesh.material && b.mesh.material.map) prioritize(b.mesh.material.map);
-  focusOn(b);
+  focusSelection(b);
   renderInfo();
   refreshLines();
   syncLocation();
@@ -1033,6 +1063,8 @@ function kindLabel(b) {
 function fmtPeriodDays(d) { if (d < 1) return nf(d * 24, 1) + ' 小時'; if (d < 730) return nf(d, d < 10 ? 3 : 1) + ' 天'; return nf(d / 365.25, 1) + ' 年'; }
 function fmtSpin(h) { var a = Math.abs(h), s = a < 48 ? nf(a, 2) + ' 小時' : nf(a / 24, 1) + ' 天'; return h < 0 ? s + '（逆向）' : s; }
 function row(k, v, id) { return '<dt>' + k + '</dt><dd' + (id ? ' id="' + id + '"' : '') + '>' + v + '</dd>'; }
+var INTERIOR_PROFILES={mercury:['地殼','矽酸鹽地函','大型鐵核'],venus:['地殼','矽酸鹽地函','鐵核'],earth:['地殼','地函','外核','內核'],mars:['地殼','地函','鐵硫核心'],jupiter:['大氣層','分子氫層','金屬氫層','岩石／冰質核心'],saturn:['大氣層','分子氫層','金屬氫層','核心區域'],uranus:['大氣層','冰質地函','岩石核心'],neptune:['大氣層','冰質地函','岩石核心']};
+function interiorMarkup(b){var names=INTERIOR_PROFILES[b.id]||['外層','地函／冰層','核心'],colors=['#76a9d8','#c77a55','#e8b64e','#f5e09a'],svg='<svg class="interior-diagram" viewBox="0 0 150 150" role="img" aria-label="'+b.zh+'內部構造示意">';names.forEach(function(n,i){var r=68*(names.length-i)/names.length;svg+='<circle cx="75" cy="75" r="'+r+'" fill="'+colors[Math.min(i,3)]+'"/>';});svg+='</svg>';return '<div class="interior-box"><small>'+(S.lang==='zh'?'內部構造示意（非比例）':'Interior schematic (not to scale)')+'</small>'+svg+'<div class="interior-legend">'+names.slice().reverse().map(function(n,i){return '<div><i style="background:'+colors[Math.min(names.length-1-i,3)]+'"></i>'+n+'</div>';}).join('')+'</div></div>';}
 function renderInfo() {
   var b = sel; if (!b) { infoEl.hidden = true; return; }
   var h = '<div class="head"><div><h2 class="zh">' + b.zh + '</h2><div class="en">' + b.en + '</div>' +
@@ -1067,6 +1099,7 @@ function renderInfo() {
     if (b.approx || b.kind === 'cand') h += row('資料', '位置為估計值');
   }
   h += '</dl>' + (b.kind==='mission'?'':'<button class="btn" id="btnAddCompare">加入比較</button>');
+  if(b.kind==='planet')h+='<button class="btn" id="btnInterior" aria-expanded="'+(S.interiorId===b.id)+'">'+(S.lang==='zh'?(S.interiorId===b.id?'關閉內部構造':'查看內部構造'):(S.interiorId===b.id?'Hide interior':'View interior'))+'</button>'+(S.interiorId===b.id?interiorMarkup(b):'');
   if (b.moons && b.moons.length) {
     var ms = b.moons.slice().sort(function (x, y) { return (x.irr - y.irr) || (x.a - y.a); });
     h += '<div class="chips-title">收錄衛星 ' + ms.length + ' 顆</div><div class="chips">' +
@@ -1086,6 +1119,7 @@ infoEl.addEventListener('click', function (e) {
   var t = e.target.closest('button'); if (!t) return;
   if (t.id === 'closeInfo') { infoEl.hidden = true; return; }
   if (t.id === 'btnAddCompare') { addCompare(sel); return; }
+  if (t.id === 'btnInterior') { S.interiorId=S.interiorId===sel.id?null:sel.id;renderInfo();return; }
   if (t.dataset.id && byId[t.dataset.id]) select(byId[t.dataset.id]);
 });
 
@@ -1096,11 +1130,13 @@ function updateBodies(dt) {
     var E = kepler(b.M0 + b.nDay * t, b.e), v = orbitVec(b.a, b.e, b.i, b.om, b.omega, E);
     b.rAU = Math.hypot(v[0], v[1], v[2]);
     var p = helio(v, b.a); b.grp.position.set(p[0], p[1], p[2]);
+    updateTrail(b);
     if (S.playing) b.mesh.rotation.y += b.spin * dt;
   });
   cometList.forEach(function (c) {
     var v = cometOrbitPoint(c, t), p = helio(v, c.e < 1 ? c.a : c.q);
     c.rAU = Math.hypot(v[0], v[1], v[2]); c.grp.position.set(p[0], p[1], p[2]);
+    updateTrail(c);
   });
   moonList.forEach(function (m) {
     var E = kepler(m.M0 * D2R + TAU * (t - m.epochDays) / m.P, m.e), v = orbitVec(m.a, m.e, m.i, m.om, m.w, E);
@@ -1161,6 +1197,7 @@ function updateOverlay() {
     c.grp.visible = S.cometMode;
     c.line.visible = S.cometMode && S.cometOrbits;
   });
+  trailBodies.forEach(function(b){b.trailLine.visible=S.trails&&(S.cometMode?b.kind==='comet':!S.missionMode&&b.kind!=='comet');});
   missionList.forEach(function(m){var active=S.missionMode&&(sel&&sel.kind==='mission'?sel:missionList[0])===m,arrived=S.t>=m.mission.arrivalDays;m.grp.visible=active;m.track.visible=active;m.track.visible=active&&(!m.mission.orbit||!arrived);if(m.localTrack)m.localTrack.visible=active&&arrived;});
   sun.obj.visible = true;
   beltPts.visible = S.belt && !S.cometMode && !S.missionMode;
@@ -1194,7 +1231,8 @@ function frame(now) {
   controls.update();
   camera.near = Math.max(1e-10, camera.position.distanceTo(controls.target) * 0.002);
   camera.updateProjectionMatrix();
-  stars.position.copy(camera.position);
+  stars.position.copy(camera.position); milkyWay.position.copy(camera.position);
+  var pulse=1+0.012*Math.sin(now*0.0017)+0.006*Math.sin(now*0.0041);sun.mesh.scale.setScalar(SUN_R*pulse);sun.glows.forEach(function(g,i){g.sprite.scale.setScalar(g.base*(1+(pulse-1)*(i?1.8:2.4)));g.sprite.material.opacity=g.opacity*(1+0.08*Math.sin(now*0.0013+i));});
 
   updateOverlay();
   document.getElementById('dateReadout').textContent = fmtDate(S.t);
@@ -1237,7 +1275,7 @@ canvas.addEventListener('pointermove', function (e) {
 var $ = function (id) { return document.getElementById(id); };
 var compareItems = [], tourTimer = null, tourIndex = 0;
 function savePrefs() {
-  try { localStorage.setItem('solar-system-settings', JSON.stringify({ t:S.t, playing:S.playing, dir:S.dir, speed:S.speed, dist:S.dist, moonScale:S.moonScale, planetScale:S.planetScale, planetOrbits:S.planetOrbits, moonOrbits:S.moonOrbits, cometOrbits:S.cometOrbits, cometMode:S.cometMode, missionMode:S.missionMode, irr:S.irr, labels:S.labels, belt:S.belt, lang:S.lang })); } catch (err) {}
+  try { localStorage.setItem('solar-system-settings', JSON.stringify({ speedVersion:1,t:S.t, playing:S.playing, dir:S.dir, speed:S.speed, dist:S.dist, moonScale:S.moonScale, planetScale:S.planetScale, planetOrbits:S.planetOrbits, moonOrbits:S.moonOrbits, cometOrbits:S.cometOrbits, cometMode:S.cometMode, missionMode:S.missionMode, irr:S.irr, labels:S.labels, belt:S.belt, followLock:S.followLock,trails:S.trails,lang:S.lang })); } catch (err) {}
 }
 function syncLocation() {
   var hash = '#' + encodeURIComponent(sel ? sel.id : (follow && follow !== sun ? follow.id : 'sun')) + '?date=' + new Date(J2000_MS + S.t * 86400000).toISOString().slice(0,10) + '&mode=' + (S.missionMode ? 'missions' : S.cometMode ? 'comets' : 'planets');
@@ -1246,13 +1284,15 @@ function syncLocation() {
 }
 function dateValue() { return new Date(J2000_MS + S.t * 86400000).toISOString().slice(0,10); }
 function setDatePicker() { if (document.activeElement !== $('datePicker')) $('datePicker').value = dateValue(); }
-function dateChanged(value) { if (!value) return; S.t = (Date.parse(value + 'T12:00:00Z') - J2000_MS) / 86400000; S.playing = false; setPlayLabel(); syncLocation(); }
+function dateChanged(value) { if (!value) return; S.t = (Date.parse(value + 'T12:00:00Z') - J2000_MS) / 86400000; S.playing = false; resetTrailHistory(); setPlayLabel(); syncLocation(); }
 function renderCompare() {
   var panel = $('compare');
   if (!compareItems.length) { panel.hidden = true; panel.innerHTML = ''; return; }
   function dist(b) { return b.kind === 'sun' ? '0 AU' : b.kind === 'moon' ? nf(b.rKm || b.a, 0) + ' km' : nf(b.rAU || b.a, 2) + ' AU'; }
   function period(b) { return b.kind === 'sun' ? '—' : b.kind === 'moon' ? fmtPeriodDays(b.P) : b.P ? (b.P < 2 ? nf(b.P*365.25,1)+' 天' : nf(b.P,1)+' 年') : '開放軌道'; }
-  panel.innerHTML = '<div class="head"><strong>天體比較</strong><button class="x" id="clearCompare" aria-label="清除">✕</button></div><table><thead><tr><th>項目</th>' + compareItems.map(function(b){return '<th>'+b.zh+'</th>';}).join('') + '</tr></thead><tbody><tr><td>直徑</td>'+compareItems.map(function(b){return '<td>'+(b.R ? nf(b.R*2,0)+' km' : '—')+'</td>';}).join('')+'</tr><tr><td>公轉週期</td>'+compareItems.map(function(b){return '<td>'+period(b)+'</td>';}).join('')+'</tr><tr><td>目前距離</td>'+compareItems.map(function(b){return '<td data-compare-id="'+b.id+'">'+dist(b)+'</td>';}).join('')+'</tr></tbody></table><small>彗星大小未按真實比例呈現。</small>';
+  var maxD=Math.max.apply(null,compareItems.map(function(b){return b.R?b.R*2:1;}));
+  var visual='<div class="compare-visual">'+compareItems.map(function(b){var d=b.R?b.R*2:1,px=Math.max(2,d/maxD*90);return '<figure><span class="sphere" style="--diam:'+px.toFixed(1)+'px;--body-color:'+b.col+'"></span><figcaption>'+b.zh+'</figcaption></figure>';}).join('')+'</div>';
+  panel.innerHTML = '<div class="head"><strong>天體比較</strong><button class="x" id="clearCompare" aria-label="清除">✕</button></div>'+visual+'<table><thead><tr><th>項目</th>' + compareItems.map(function(b){return '<th>'+b.zh+'</th>';}).join('') + '</tr></thead><tbody><tr><td>直徑</td>'+compareItems.map(function(b){return '<td>'+(b.R ? nf(b.R*2,0)+' km' : '—')+'</td>';}).join('')+'</tr><tr><td>公轉週期</td>'+compareItems.map(function(b){return '<td>'+period(b)+'</td>';}).join('')+'</tr><tr><td>目前距離</td>'+compareItems.map(function(b){return '<td data-compare-id="'+b.id+'">'+dist(b)+'</td>';}).join('')+'</tr></tbody></table><small>球體大小按直徑線性比例呈現；彗星大小未按真實比例呈現。</small>';
   panel.hidden = false; if (S.lang === 'en') translateText(panel);
 }
 function addCompare(b) { if (!compareItems.some(function(x){return x.id===b.id;})) compareItems.push(b); if(compareItems.length>2) compareItems.shift(); renderCompare(); }
@@ -1268,25 +1308,30 @@ function toggleLanguage() {
   $('brandSub').textContent = S.lang === 'zh' ? '拖曳旋轉・滾輪對準天體放大・點選天體' : 'Drag to rotate · Scroll to zoom · Select a body';
   $('btnLayers').textContent = S.lang === 'zh' ? '圖層' : 'Layers'; $('btnFullscreen').textContent = S.lang === 'zh' ? '全螢幕' : 'Fullscreen'; $('btnScreenshot').textContent = S.lang === 'zh' ? '截圖' : 'Screenshot';
   $('dateLabel').textContent = S.lang === 'zh' ? '日期' : 'Date'; $('perihelionLabel').textContent = S.lang === 'zh' ? '近日點' : 'Perihelion'; $('btnTour').textContent = S.lang === 'zh' ? '導覽' : 'Tour'; $('btnNow').textContent = S.lang === 'zh' ? '現在' : 'Now'; $('btnHome').textContent = S.lang === 'zh' ? '全景' : 'Overview'; $('btnClose').textContent = S.lang === 'zh' ? '特寫' : 'Close-up'; $('planetScaleLabel').textContent = S.lang === 'zh' ? '顯示比例' : 'Size scale';
+  $('speedRealtime').textContent=S.lang==='zh'?'即時':'Realtime';$('speedDay').textContent=S.lang==='zh'?'1 日/秒':'1 day/sec';$('speedYear').textContent=S.lang==='zh'?'1 年/秒':'1 year/sec';$('optFollow').parentElement.lastChild.textContent=S.lang==='zh'?'跟隨選取天體':'Follow selected body';$('optTrails').parentElement.lastChild.textContent=S.lang==='zh'?'顯示歷史軌跡殘影':'Show recent orbit trails';
   $('q').placeholder = S.lang === 'zh' ? '搜尋天體' : 'Search bodies'; $('q').setAttribute('aria-label', $('q').placeholder);
   bodies.forEach(function(b){if(b.tag){var span=b.tag.querySelector('span');if(span)span.textContent=S.lang==='zh'?b.zh:b.en;}});
   var selectedMission=$('missionSelect').value;$('missionSelect').innerHTML=missionList.map(function(m){return '<option value="'+m.id+'">'+(S.lang==='zh'?m.zh:m.en)+'</option>';}).join('');if(selectedMission)$('missionSelect').value=selectedMission;
   document.querySelectorAll('#perihelionJump option').forEach(function(o){ if(!o.value)o.textContent=S.lang==='zh'?'選擇彗星':'Choose a comet'; });
-  renderInfo(); renderCompare(); translateText(document.body); savePrefs();
+  renderInfo(); renderCompare(); translateText(document.body); setSpeedLabel(); savePrefs();
 }
 function updateCompareDistances() { $('compare').querySelectorAll('[data-compare-id]').forEach(function(td){var b=byId[td.dataset.compareId];if(b)td.textContent=b.kind==='moon'?nf(b.rKm||b.a,0)+' km':b.kind==='sun'?'0 AU':nf(b.rAU||b.a,2)+' AU';}); }
-function setSpeedLabel() { $('speedLabel').textContent = (S.playing ? '' : '已暫停・') + SPEED_LABELS[S.speed] + (S.dir < 0 ? '・倒轉' : ''); }
+function setSpeedLabel() { var labels=S.lang==='zh'?SPEED_LABELS:['Realtime','1 hour / sec','6 hours / sec','1 day / sec','3 days / sec','10 days / sec','30 days / sec','1 year / sec','10 years / sec'];$('speedLabel').textContent = (S.playing ? '' : (S.lang==='zh'?'已暫停・':'Paused · ')) + labels[S.speed] + (S.dir < 0 ? (S.lang==='zh'?'・倒轉':' · reverse') : ''); }
 function setPlayLabel() { $('btnPlay').textContent = S.playing ? '暫停' : '播放'; setSpeedLabel(); }
 $('btnPlay').addEventListener('click', function () { if(sel&&sel.kind==='mission'&&!S.playing){var pts=sel.mission.points;if(S.dir>0&&S.t>=pts[pts.length-1][0])S.t=pts[0][0];if(S.dir<0&&S.t<=pts[0][0])S.t=pts[pts.length-1][0];} S.playing = !S.playing; setPlayLabel(); savePrefs(); });
 $('btnRev').addEventListener('click', function () { S.dir *= -1; this.setAttribute('aria-pressed', S.dir < 0 ? 'true' : 'false'); setSpeedLabel(); savePrefs(); });
 $('speed').addEventListener('input', function () { S.speed = +this.value; setSpeedLabel(); savePrefs(); });
-$('btnNow').addEventListener('click', function () { S.t = nowDays(); });
+function setSpeedPreset(index){S.speed=index;$('speed').value=index;setSpeedLabel();savePrefs();}
+$('speedRealtime').addEventListener('click',function(){setSpeedPreset(0);});$('speedDay').addEventListener('click',function(){setSpeedPreset(3);});$('speedYear').addEventListener('click',function(){setSpeedPreset(7);});
+$('optFollow').addEventListener('change',function(){S.followLock=this.checked;if(sel){if(S.followLock)focusOn(sel);else focusSelection(sel);}savePrefs();});
+$('optTrails').addEventListener('change',function(){S.trails=this.checked;resetTrailHistory();savePrefs();});
+$('btnNow').addEventListener('click', function () { S.t = nowDays(); resetTrailHistory(); });
 $('datePicker').addEventListener('change', function(){ dateChanged(this.value); });
 $('btnNow').addEventListener('click', function(){ setDatePicker(); syncLocation(); });
 $('perihelionJump').innerHTML = '<option value="">選擇彗星近日點</option>' + cometList.map(function(c){return '<option value="'+c.id+'">'+c.zh+' · '+new Date((c.tpJD-2440587.5)*86400000).toISOString().slice(0,10)+'</option>';}).join('');
-$('perihelionJump').addEventListener('change', function(){var c=byId[this.value];if(!c)return;setViewMode(true);S.t=c.tpDays;S.playing=false;setPlayLabel();select(c);setDatePicker();syncLocation();this.value='';});
+$('perihelionJump').addEventListener('change', function(){var c=byId[this.value];if(!c)return;setViewMode(true);S.t=c.tpDays;resetTrailHistory();S.playing=false;setPlayLabel();select(c);setDatePicker();syncLocation();this.value='';});
 $('planetScale').value=S.planetScale; $('planetScaleVal').textContent=nf(S.planetScale,1)+'×';
-$('planetScale').addEventListener('input',function(){S.planetScale=+this.value;$('planetScaleVal').textContent=nf(S.planetScale,1)+'×';parents.forEach(function(b){b.size=b.baseSize*S.planetScale;b.mesh.scale.setScalar(b.size);if(b.ringMesh)b.ringMesh.scale.setScalar(S.planetScale);});missionList.forEach(function(m){setMissionSize(m);m._orbitGeometryTime=null;});savePrefs();});
+$('planetScale').addEventListener('input',function(){S.planetScale=+this.value;$('planetScaleVal').textContent=nf(S.planetScale,1)+'×';parents.forEach(function(b){b.size=b.baseSize*S.planetScale;b.mesh.scale.setScalar(b.size);if(b.atmosphere)b.atmosphere.scale.setScalar(b.size*1.09);if(b.ringMesh)b.ringMesh.scale.setScalar(S.planetScale);});missionList.forEach(function(m){setMissionSize(m);m._orbitGeometryTime=null;});savePrefs();});
 $('btnLanguage').addEventListener('click',toggleLanguage);
 $('btnFullscreen').addEventListener('click',function(){if(document.fullscreenElement)document.exitFullscreen();else if(app.requestFullscreen)app.requestFullscreen();});
 document.addEventListener('fullscreenchange',function(){ $('btnFullscreen').textContent=document.fullscreenElement?(S.lang==='zh'?'退出全螢幕':'Exit fullscreen'):(S.lang==='zh'?'全螢幕':'Fullscreen'); resize(); });
@@ -1380,7 +1425,7 @@ if (window.ResizeObserver) new ResizeObserver(resize).observe(app); else window.
 resize();
 $('speed').value = S.speed;
 $('moonScale').value = S.moonScale; $('moonScaleVal').textContent = nf(S.moonScale,1)+'×';
-['optPlanetOrbits','optMoonOrbits','optCometOrbits','optIrr','optLabels','optBelt'].forEach(function(id){var map={optPlanetOrbits:S.planetOrbits,optMoonOrbits:S.moonOrbits,optCometOrbits:S.cometOrbits,optIrr:S.irr,optLabels:S.labels,optBelt:S.belt};$(id).checked=map[id];});
+['optPlanetOrbits','optMoonOrbits','optCometOrbits','optIrr','optLabels','optBelt'].forEach(function(id){var map={optPlanetOrbits:S.planetOrbits,optMoonOrbits:S.moonOrbits,optCometOrbits:S.cometOrbits,optIrr:S.irr,optLabels:S.labels,optBelt:S.belt};$(id).checked=map[id];});$('optFollow').checked=S.followLock;$('optTrails').checked=S.trails;
 $('optCometOrbits').checked=S.cometOrbits; $('optLabels').checked=S.labels; labelsEl.classList.toggle('nolabels',!S.labels);
 Array.prototype.forEach.call(document.querySelectorAll('input[name=dist]'),function(r){r.checked=r.value===S.dist;});
 Array.prototype.forEach.call(document.querySelectorAll('input[name=viewMode]'),function(r){r.checked=r.value===(S.missionMode?'missions':S.cometMode?'comets':'planets');});

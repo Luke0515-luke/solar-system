@@ -9,3 +9,12 @@ Choose **月球與火星任務** in the Layers panel to view eleven selected lun
 NASA 3D models are included under `models/`; `GLTFLoader.js` is the Three.js r128 loader. Keep the assets next to `index.html` when opening or hosting the site. Model credits: [LRO](https://science.nasa.gov/3d-resources/lunar-reconnaissance-orbiter-b/), [Mars Odyssey](https://science.nasa.gov/3d-resources/mars-odyssey/), [Curiosity](https://science.nasa.gov/resource/curiosity-3d-model/), and [Perseverance](https://science.nasa.gov/3d-resources/mars-2020-perseverance-rover/).
 
 Mission-era orbit reference pages: [NASA LRO](https://science.nasa.gov/mission/lro/about/), [NASA Mars Odyssey](https://mars.nasa.gov/system/downloadable_items/44749_odysseyarrival1.pdf), [ESA Mars Express](https://www.esa.int/articles/about-us/directorates/science/mars-express/the-mission), [NASA MRO](https://mars.nasa.gov/system/downloadable_items/44745_mro-arrival.pdf), and [NASA MAVEN](https://science.nasa.gov/mission/maven/).
+
+## Visual and interaction features
+
+- Earth, Venus, and Saturn have a subtle additive atmospheric rim; the Sun glow pulses gently; the star field includes a clustered Milky Way band.
+- Turn off **跟隨選取天體** to keep the camera on the Sun when selecting a planet, then watch it move along its orbit. Turn on **顯示歷史軌跡殘影** while time is playing to draw its recent path.
+- The time bar includes **即時**, **1 日/秒**, and **1 年/秒** presets. The former speed-slider values are migrated when saved preferences are loaded.
+- Planet information includes a simplified internal-structure diagram, labeled as not to scale. Comparison shows two selected bodies with diameter-proportional disks plus the existing measurements table.
+
+The atmosphere, solar animation, star-band clustering, and body scale diagrams are illustrative visualizations, not photorealistic or scale-complete scientific renders.
