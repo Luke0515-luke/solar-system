@@ -51,7 +51,7 @@ button { cursor: pointer; }
 .topbar > * { pointer-events: auto; }
 .brand h1 { margin: 0; font: 700 18px/1.2 var(--font-display); letter-spacing: 0.02em; }
 .brand p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
-.tools { display: flex; gap: 8px; align-items: flex-start; }
+.tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; align-items: flex-start; max-width: 72vw; }
 
 .btn { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; min-height: 36px; line-height: 1.2; backdrop-filter: blur(6px); }
 .btn:hover { border-color: var(--muted); }
@@ -103,6 +103,13 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
 .clock small { font-size: 12px; color: var(--muted); }
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
 .controls input[type=range] { width: 130px; }
+.date-control { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.date-control input, .date-control select { min-height: 36px; max-width: 150px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--fg); }
+#compare { top: 64px; left: 50%; transform: translateX(-50%); width: min(460px, calc(100% - 32px)); max-height: 34%; padding: 12px 14px; }
+#compare table { width: 100%; border-collapse: collapse; font-size: 12px; }
+#compare th, #compare td { padding: 5px 7px; border-bottom: 1px solid var(--line-soft); text-align: right; }
+#compare th:first-child, #compare td:first-child { text-align: left; color: var(--muted); }
+#compare .head { margin-bottom: 8px; }
 
 .toast { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 12px; text-align: center; pointer-events: none; transition: opacity 0.6s; z-index: 3; }
 .toast.gone { opacity: 0; }
@@ -113,6 +120,9 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
   #layers { right: max(16px, env(safe-area-inset-right, 0px)); width: auto; max-height: 52%; }
   .timebar { width: auto; justify-content: space-between; }
   .controls input[type=range] { width: 100px; }
+  .date-control { flex-wrap: wrap; }
+  .date-control input, .date-control select { max-width: 132px; }
+  #compare { top: 60px; max-height: 30%; }
   .toast { bottom: 148px; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -129,11 +139,14 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
 
   <div class="topbar">
     <div class="brand">
-      <h1>太陽系模擬器</h1>
-      <p>拖曳旋轉・滾輪對準天體放大・點選天體</p>
+      <h1 id="brandTitle">太陽系模擬器</h1>
+      <p id="brandSub">拖曳旋轉・滾輪對準天體放大・點選天體</p>
     </div>
     <div class="tools">
       <button class="btn" id="btnLayers" aria-expanded="false" aria-controls="layers">圖層</button>
+      <button class="btn" id="btnLanguage" aria-label="切換語言">English</button>
+      <button class="btn" id="btnFullscreen">全螢幕</button>
+      <button class="btn" id="btnScreenshot">截圖</button>
       <div class="search">
         <input id="q" type="search" placeholder="搜尋天體" autocomplete="off" aria-label="搜尋天體">
         <ul id="results" hidden></ul>
@@ -151,6 +164,13 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
       <h3>彗星顯示</h3>
       <label class="check"><input type="checkbox" id="optCometOrbits" checked>彗星軌道</label>
       <p class="note">收錄 7 顆代表性彗星，軌道參數取自 JPL。彗核放大顯示，點選彗星可追蹤。</p>
+    </div>
+    <div class="group">
+      <h3>行星尺寸</h3>
+      <div class="slider">
+        <label for="planetScale"><span id="planetScaleLabel">顯示比例</span><span id="planetScaleVal">1.0×</span></label>
+        <input type="range" id="planetScale" min="0.5" max="3" step="0.1" value="1" aria-label="行星顯示比例">
+      </div>
     </div>
     <div class="group">
       <h3>顯示</h3>
@@ -176,6 +196,7 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
   </aside>
 
   <section id="info" class="panel" hidden aria-live="polite"></section>
+  <section id="compare" class="panel" hidden aria-live="polite" aria-label="天體比較"></section>
 
   <div class="toast" id="toast">點選任一天體即可飛過去；按「特寫」或 + / − 可再放大縮小</div>
 
@@ -185,6 +206,9 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
       <small id="speedLabel">—</small>
     </div>
     <div class="controls">
+      <label class="date-control"><span id="dateLabel">日期</span><input id="datePicker" type="date" aria-label="跳到指定日期"></label>
+      <label class="date-control"><span id="perihelionLabel">近日點</span><select id="perihelionJump" aria-label="跳至彗星近日點"><option value="">選擇彗星</option></select></label>
+      <button class="btn" id="btnTour">導覽</button>
       <button class="btn primary" id="btnPlay">暫停</button>
       <button class="btn" id="btnRev" aria-pressed="false">反向</button>
       <input type="range" id="speed" min="0" max="7" step="1" value="5" aria-label="模擬速度">
@@ -572,7 +596,14 @@ var MOON_TINT = { Moon: '#d2d0cb', Io: '#e8d06a', Europa: '#dccfb6', Ganymede: '
 var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 var SPEEDS = [1 / 24, 0.25, 1, 3, 10, 30, 365.25, 3652.5];
 var SPEED_LABELS = ['1 小時 / 秒', '6 小時 / 秒', '1 天 / 秒', '3 天 / 秒', '10 天 / 秒', '30 天 / 秒', '1 年 / 秒', '10 年 / 秒'];
-var S = { t: nowDays(), playing: !reduceMotion, dir: 1, speed: 5, dist: 'lin', moonScale: 1, planetOrbits: true, moonOrbits: true, cometOrbits: true, cometMode: false, irr: true, labels: true, belt: true };
+var savedPrefs = {};
+try { savedPrefs = JSON.parse(localStorage.getItem('solar-system-settings') || '{}') || {}; } catch (err) { savedPrefs = {}; }
+var S = { t: Number.isFinite(+savedPrefs.t) ? +savedPrefs.t : nowDays(), playing: savedPrefs.playing === true && !reduceMotion, dir: savedPrefs.dir === -1 ? -1 : 1, speed: clamp(+savedPrefs.speed || 5, 0, 7),
+  dist: savedPrefs.dist === 'comp' ? 'comp' : 'lin', moonScale: clamp(+savedPrefs.moonScale || 1, 0.4, 2),
+  planetScale: clamp(+savedPrefs.planetScale || 1, 0.5, 3), planetOrbits: savedPrefs.planetOrbits !== false,
+  moonOrbits: savedPrefs.moonOrbits !== false, cometOrbits: savedPrefs.cometOrbits !== false,
+  cometMode: savedPrefs.cometMode === true, irr: savedPrefs.irr !== false, labels: savedPrefs.labels !== false,
+  belt: savedPrefs.belt !== false, lang: savedPrefs.lang === 'en' ? 'en' : 'zh' };
 var SUN_R = 4;
 function mapAU(r) { return S.dist === 'comp' ? 12 * Math.pow(r, 0.6) : 25 * r; }
 var PLANET_SCALE = 1.5; /* 行星顯示比例：越大越容易看清楚 */
@@ -580,7 +611,7 @@ function bodySize(R) { return PLANET_SCALE * Math.max(0.3, 0.9 * Math.pow(R / 63
 
 /* ---------- three.js scene ---------- */
 var canvas = document.getElementById('gl'), app = document.getElementById('app'), labelsEl = document.getElementById('labels');
-var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0x050812, 1);
 var scene = new THREE.Scene();
@@ -680,7 +711,7 @@ function makeMoonFrame(p) { return { eq: p.tilt, ecl: p.grp }; }
 
 function buildBody(d) {
   var b = addBody(d);
-  b.size = bodySize(b.R);
+  b.baseSize = bodySize(b.R); b.size = b.baseSize * S.planetScale;
   b.moons = [];
   b.grp = new THREE.Group(); scene.add(b.grp);
   b.tilt = new THREE.Group(); b.tilt.rotation.z = b.ob * D2R; b.grp.add(b.tilt);
@@ -700,7 +731,7 @@ function buildBody(d) {
     var pos = geo.attributes.position, uv = geo.attributes.uv, v3 = new THREE.Vector3();
     for (var k = 0; k < pos.count; k++) { v3.fromBufferAttribute(pos, k); uv.setXY(k, (v3.length() - inner) / (outer - inner), 1); }
     var ring = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: ringTex(), transparent: true, side: THREE.DoubleSide, roughness: 1, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2; b.tilt.add(ring);
+    ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(S.planetScale); b.tilt.add(ring); b.ringMesh = ring;
   }
   return b;
 }
@@ -709,7 +740,7 @@ var parents = planetList.concat(dwarfList);
 
 function buildComet(d) {
   var c = addBody({ id: d[0], kind: 'comet', zh: d[1], en: d[2], q: d[3], e: d[4], i: d[5], om: d[6], w: d[7], tpJD: d[8],
-    P: d[9], meanMotion: d[10], orbitRef: d[11], a: d[4] < 1 ? d[3] / (1 - d[4]) : d[3] / (d[4] - 1), col: '#9fe8ed', R: 1 });
+    P: d[9], meanMotion: d[10], orbitRef: d[11], a: d[4] < 1 ? d[3] / (1 - d[4]) : d[3] / (d[4] - 1), col: '#9fe8ed', R: null });
   c.tpDays = c.tpJD - 2451545.0;
   c.size = 0.62; c.grp = new THREE.Group(); scene.add(c.grp); c.obj = c.grp;
   var mat = new THREE.MeshStandardMaterial({ color: 0xd9f3f4, emissive: 0x294c55, roughness: 1, metalness: 0 });
@@ -743,7 +774,7 @@ parents.forEach(function (p) {
       m.om = base.om; m.w = base.w; m.M0 = base.M0 + extra.lock[1];
       m.approx = true; /* L4/L5 libration represented by a fixed 60-degree offset */
     }
-    m.size = clamp(0.28 * p.size * Math.sqrt(m.R / p.R), 0.045, 0.5);
+    m.size = clamp(0.28 * p.baseSize * Math.sqrt(m.R / p.R), 0.045, 0.5);
     m.col = m.irr ? '#b3a8f0' : '#9fd4ff';
     var mat = new THREE.MeshStandardMaterial({ map: tex('rock'), roughness: 1, metalness: 0 });
     mat.color.set(MOON_TINT[m.en] || (m.irr ? '#8f8a85' : '#bdb8b0'));
@@ -795,7 +826,7 @@ function buildCometLine(c) {
 function moonMap(m, v) {
   var p = m.parent, x = m.a / p.R;
   var g = x <= 2.6 ? x : 2.6 + Math.log(x / 2.6);
-  var mm = p.size * (1 + (g - 1) * S.moonScale), k = mm / m.a;
+  var mm = p.baseSize * (1 + (g - 1) * S.moonScale), k = mm / m.a;
   return [v[0] * k, v[2] * k, -v[1] * k];
 }
 function buildPlanetLine(b) {
@@ -877,6 +908,7 @@ function select(b) {
   focusOn(b);
   renderInfo();
   refreshLines();
+  syncLocation();
   document.getElementById('toast').classList.add('gone');
 }
 function goHome() {
@@ -942,7 +974,7 @@ function renderInfo() {
     h += row('目前距太陽', '—', 'liveDist');
     if (b.approx || b.kind === 'cand') h += row('資料', '位置為估計值');
   }
-  h += '</dl>';
+  h += '</dl><button class="btn" id="btnAddCompare">加入比較</button>';
   if (b.moons && b.moons.length) {
     var ms = b.moons.slice().sort(function (x, y) { return (x.irr - y.irr) || (x.a - y.a); });
     h += '<div class="chips-title">收錄衛星 ' + ms.length + ' 顆</div><div class="chips">' +
@@ -950,7 +982,7 @@ function renderInfo() {
   } else if (b.kind === 'moon') {
     h += '<div class="chips-title">所屬系統</div><div class="chips"><button class="chip" data-id="' + b.parent.id + '">' + b.parent.zh + '</button></div>';
   }
-  infoEl.innerHTML = h; infoEl.hidden = false; infoEl.scrollTop = 0;
+  infoEl.innerHTML = h; infoEl.hidden = false; infoEl.scrollTop = 0; if (S.lang === 'en') translateText(infoEl);
   updateLive();
 }
 function updateLive() {
@@ -961,6 +993,7 @@ function updateLive() {
 infoEl.addEventListener('click', function (e) {
   var t = e.target.closest('button'); if (!t) return;
   if (t.id === 'closeInfo') { infoEl.hidden = true; return; }
+  if (t.id === 'btnAddCompare') { addCompare(sel); return; }
   if (t.dataset.id && byId[t.dataset.id]) select(byId[t.dataset.id]);
 });
 
@@ -1058,7 +1091,7 @@ function frame(now) {
 
   updateOverlay();
   document.getElementById('dateReadout').textContent = fmtDate(S.t);
-  if (now - lastInfo > 250) { lastInfo = now; updateLive(); }
+  if (now - lastInfo > 250) { lastInfo = now; updateLive(); updateCompareDistances(); setDatePicker(); }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -1095,12 +1128,63 @@ canvas.addEventListener('pointermove', function (e) {
 
 /* ---------- UI wiring ---------- */
 var $ = function (id) { return document.getElementById(id); };
+var compareItems = [], tourTimer = null, tourIndex = 0;
+function savePrefs() {
+  try { localStorage.setItem('solar-system-settings', JSON.stringify({ t:S.t, playing:S.playing, dir:S.dir, speed:S.speed, dist:S.dist, moonScale:S.moonScale, planetScale:S.planetScale, planetOrbits:S.planetOrbits, moonOrbits:S.moonOrbits, cometOrbits:S.cometOrbits, cometMode:S.cometMode, irr:S.irr, labels:S.labels, belt:S.belt, lang:S.lang })); } catch (err) {}
+}
+function syncLocation() {
+  var hash = '#' + encodeURIComponent(sel ? sel.id : (follow && follow !== sun ? follow.id : 'sun')) + '?date=' + new Date(J2000_MS + S.t * 86400000).toISOString().slice(0,10) + '&mode=' + (S.cometMode ? 'comets' : 'planets');
+  try { history.replaceState(null, '', location.pathname + location.search + hash); } catch (err) {}
+  savePrefs();
+}
+function dateValue() { return new Date(J2000_MS + S.t * 86400000).toISOString().slice(0,10); }
+function setDatePicker() { if (document.activeElement !== $('datePicker')) $('datePicker').value = dateValue(); }
+function dateChanged(value) { if (!value) return; S.t = (Date.parse(value + 'T12:00:00Z') - J2000_MS) / 86400000; S.playing = false; setPlayLabel(); syncLocation(); }
+function renderCompare() {
+  var panel = $('compare');
+  if (!compareItems.length) { panel.hidden = true; panel.innerHTML = ''; return; }
+  function dist(b) { return b.kind === 'sun' ? '0 AU' : b.kind === 'moon' ? nf(b.rKm || b.a, 0) + ' km' : nf(b.rAU || b.a, 2) + ' AU'; }
+  function period(b) { return b.kind === 'sun' ? '—' : b.kind === 'moon' ? fmtPeriodDays(b.P) : b.P ? (b.P < 2 ? nf(b.P*365.25,1)+' 天' : nf(b.P,1)+' 年') : '開放軌道'; }
+  panel.innerHTML = '<div class="head"><strong>天體比較</strong><button class="x" id="clearCompare" aria-label="清除">✕</button></div><table><thead><tr><th>項目</th>' + compareItems.map(function(b){return '<th>'+b.zh+'</th>';}).join('') + '</tr></thead><tbody><tr><td>直徑</td>'+compareItems.map(function(b){return '<td>'+(b.R ? nf(b.R*2,0)+' km' : '—')+'</td>';}).join('')+'</tr><tr><td>公轉週期</td>'+compareItems.map(function(b){return '<td>'+period(b)+'</td>';}).join('')+'</tr><tr><td>目前距離</td>'+compareItems.map(function(b){return '<td data-compare-id="'+b.id+'">'+dist(b)+'</td>';}).join('')+'</tr></tbody></table><small>彗星大小未按真實比例呈現。</small>';
+  panel.hidden = false; if (S.lang === 'en') translateText(panel);
+}
+function addCompare(b) { if (!compareItems.some(function(x){return x.id===b.id;})) compareItems.push(b); if(compareItems.length>2) compareItems.shift(); renderCompare(); }
+function translateText(root) {
+  var pairs=[['天體模式','Body mode'],['行星系統','Planetary system'],['彗星顯示','Comet display'],['彗星軌道','Comet orbits'],['行星尺寸','Planet size'],['顯示','Display'],['行星與矮行星軌道','Planet and dwarf-planet orbits'],['衛星軌道','Moon orbits'],['不規則衛星','Irregular moons'],['名稱標籤','Name labels'],['小行星帶','Asteroid belt'],['行星間距','Planet spacing'],['展示壓縮（方便看清全部行星）','Compressed (all planets fit on screen)'],['依 AU 比例（行星間距較符合實際）','AU scale (more realistic spacing)'],['展開程度','Expansion'],['搜尋天體','Search bodies'],['找不到符合的天體','No matching bodies found'],['加入比較','Add to comparison'],['天體比較','Body comparison'],['項目','Measure'],['直徑','Diameter'],['公轉週期','Orbital period'],['目前距離','Current distance'],['目前距太陽','Distance from Sun'],['半徑','Radius'],['半長軸','Semi-major axis'],['離心率','Eccentricity'],['軌道傾角','Inclination'],['近日點距離','Perihelion distance'],['近日點通過','Perihelion date'],['軌道資料','Orbit data'],['彗核大小','Nucleus size'],['放大顯示，非比例尺寸','Enlarged; not to scale'],['收錄衛星','Moons'],['所屬系統','Parent system'],['繞行','Orbits'],['資料','Data'],['位置為估計值','Position is estimated'],['軌道為估計值','Orbit is estimated'],['恆星','Star'],['矮行星','Dwarf planet'],['行星','Planet'],['衛星','Moon'],['彗星','Comet'],['彗星大小未按真實比例呈現。','Comet sizes are not shown to scale.']];
+  var map={}; pairs.forEach(function(p){map[S.lang==='en'?p[0]:p[1]]=S.lang==='en'?p[1]:p[0];});
+  var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),node; while((node=walker.nextNode())){if(node.parentElement&&node.parentElement.closest('script,style'))continue;var s=node.nodeValue;Object.keys(map).forEach(function(k){s=s.split(k).join(map[k]);});node.nodeValue=s;}
+}
+function toggleLanguage() {
+  S.lang = S.lang === 'zh' ? 'en' : 'zh';
+  $('btnLanguage').textContent = S.lang === 'zh' ? 'English' : '中文';
+  $('brandTitle').textContent = S.lang === 'zh' ? '太陽系模擬器' : 'Solar System Simulator';
+  $('brandSub').textContent = S.lang === 'zh' ? '拖曳旋轉・滾輪對準天體放大・點選天體' : 'Drag to rotate · Scroll to zoom · Select a body';
+  $('btnLayers').textContent = S.lang === 'zh' ? '圖層' : 'Layers'; $('btnFullscreen').textContent = S.lang === 'zh' ? '全螢幕' : 'Fullscreen'; $('btnScreenshot').textContent = S.lang === 'zh' ? '截圖' : 'Screenshot';
+  $('dateLabel').textContent = S.lang === 'zh' ? '日期' : 'Date'; $('perihelionLabel').textContent = S.lang === 'zh' ? '近日點' : 'Perihelion'; $('btnTour').textContent = S.lang === 'zh' ? '導覽' : 'Tour'; $('btnNow').textContent = S.lang === 'zh' ? '現在' : 'Now'; $('btnHome').textContent = S.lang === 'zh' ? '全景' : 'Overview'; $('btnClose').textContent = S.lang === 'zh' ? '特寫' : 'Close-up'; $('planetScaleLabel').textContent = S.lang === 'zh' ? '顯示比例' : 'Size scale';
+  $('q').placeholder = S.lang === 'zh' ? '搜尋天體' : 'Search bodies'; $('q').setAttribute('aria-label', $('q').placeholder);
+  bodies.forEach(function(b){if(b.tag){var span=b.tag.querySelector('span');if(span)span.textContent=S.lang==='zh'?b.zh:b.en;}});
+  document.querySelectorAll('#perihelionJump option').forEach(function(o){ if(!o.value)o.textContent=S.lang==='zh'?'選擇彗星':'Choose a comet'; });
+  renderInfo(); renderCompare(); translateText(document.body); savePrefs();
+}
+function updateCompareDistances() { $('compare').querySelectorAll('[data-compare-id]').forEach(function(td){var b=byId[td.dataset.compareId];if(b)td.textContent=b.kind==='moon'?nf(b.rKm||b.a,0)+' km':b.kind==='sun'?'0 AU':nf(b.rAU||b.a,2)+' AU';}); }
 function setSpeedLabel() { $('speedLabel').textContent = (S.playing ? '' : '已暫停・') + SPEED_LABELS[S.speed] + (S.dir < 0 ? '・倒轉' : ''); }
 function setPlayLabel() { $('btnPlay').textContent = S.playing ? '暫停' : '播放'; setSpeedLabel(); }
-$('btnPlay').addEventListener('click', function () { S.playing = !S.playing; setPlayLabel(); });
-$('btnRev').addEventListener('click', function () { S.dir *= -1; this.setAttribute('aria-pressed', S.dir < 0 ? 'true' : 'false'); setSpeedLabel(); });
-$('speed').addEventListener('input', function () { S.speed = +this.value; setSpeedLabel(); });
+$('btnPlay').addEventListener('click', function () { S.playing = !S.playing; setPlayLabel(); savePrefs(); });
+$('btnRev').addEventListener('click', function () { S.dir *= -1; this.setAttribute('aria-pressed', S.dir < 0 ? 'true' : 'false'); setSpeedLabel(); savePrefs(); });
+$('speed').addEventListener('input', function () { S.speed = +this.value; setSpeedLabel(); savePrefs(); });
 $('btnNow').addEventListener('click', function () { S.t = nowDays(); });
+$('datePicker').addEventListener('change', function(){ dateChanged(this.value); });
+$('btnNow').addEventListener('click', function(){ setDatePicker(); syncLocation(); });
+$('perihelionJump').innerHTML = '<option value="">選擇彗星近日點</option>' + cometList.map(function(c){return '<option value="'+c.id+'">'+c.zh+' · '+new Date((c.tpJD-2440587.5)*86400000).toISOString().slice(0,10)+'</option>';}).join('');
+$('perihelionJump').addEventListener('change', function(){var c=byId[this.value];if(!c)return;setViewMode(true);S.t=c.tpDays;S.playing=false;setPlayLabel();select(c);setDatePicker();syncLocation();this.value='';});
+$('planetScale').value=S.planetScale; $('planetScaleVal').textContent=nf(S.planetScale,1)+'×';
+$('planetScale').addEventListener('input',function(){S.planetScale=+this.value;$('planetScaleVal').textContent=nf(S.planetScale,1)+'×';parents.forEach(function(b){b.size=b.baseSize*S.planetScale;b.mesh.scale.setScalar(b.size);if(b.ringMesh)b.ringMesh.scale.setScalar(S.planetScale);});savePrefs();});
+$('btnLanguage').addEventListener('click',toggleLanguage);
+$('btnFullscreen').addEventListener('click',function(){if(document.fullscreenElement)document.exitFullscreen();else if(app.requestFullscreen)app.requestFullscreen();});
+document.addEventListener('fullscreenchange',function(){ $('btnFullscreen').textContent=document.fullscreenElement?(S.lang==='zh'?'退出全螢幕':'Exit fullscreen'):(S.lang==='zh'?'全螢幕':'Fullscreen'); resize(); });
+$('btnScreenshot').addEventListener('click',function(){try{var a=document.createElement('a');a.download='solar-system-'+dateValue()+'.png';a.href=renderer.domElement.toDataURL('image/png');a.click();}catch(err){showToast('截圖失敗，請稍後再試');}});
+$('compare').addEventListener('click',function(e){if(e.target.id==='clearCompare'){compareItems=[];renderCompare();}});
+$('btnTour').addEventListener('click',function(){if(tourTimer){clearInterval(tourTimer);tourTimer=null;this.textContent=S.lang==='zh'?'導覽':'Tour';return;}var route=[byId.sun,byId.mercury,byId.earth,byId.jupiter,byId.saturn,cometList[0],byId.neptune].filter(Boolean);tourIndex=0;function step(){if(tourIndex>=route.length){clearInterval(tourTimer);tourTimer=null;$('btnTour').textContent=S.lang==='zh'?'導覽':'Tour';return;}var b=route[tourIndex++];select(b);showToast((S.lang==='zh'?'導覽：':'Tour: ')+(S.lang==='en'?b.en:b.zh));}step();tourTimer=setInterval(step,6000);this.textContent=S.lang==='zh'?'停止導覽':'Stop tour';});
 $('btnHome').addEventListener('click', goHome);
  $('btnZoomIn').addEventListener('click', zoomIn);
  $('btnZoomOut').addEventListener('click', function () { controls.zoomBy(2); });
@@ -1134,7 +1218,7 @@ function setViewMode(comets) {
   Array.prototype.forEach.call(document.querySelectorAll('input[name=viewMode]'), function (r) { r.checked = (r.value === (comets ? 'comets' : 'planets')); });
   $('cometOptions').hidden = !comets;
   sel = null; infoEl.hidden = true; controls.minDistance = 4;
-  goHome(); refreshLines();
+  goHome(); refreshLines(); savePrefs(); syncLocation();
 }
 Array.prototype.forEach.call(document.querySelectorAll('input[name=viewMode]'), function (r) {
   r.addEventListener('change', function () { if (this.checked) setViewMode(this.value === 'comets'); });
@@ -1143,11 +1227,13 @@ Array.prototype.forEach.call(document.querySelectorAll('input[name=dist]'), func
   r.addEventListener('change', function () {
     if (!this.checked) return;
     S.dist = this.value; rebuildPlanetLines();
+    savePrefs();
     if (!sel) goHome(); else focusOn(sel);
   });
 });
 $('moonScale').addEventListener('input', function () {
   S.moonScale = +this.value; $('moonScaleVal').textContent = nf(S.moonScale, 1) + '×';
+  savePrefs();
   if (!rebuildQueued) { rebuildQueued = true; requestAnimationFrame(function () { rebuildQueued = false; rebuildMoonLines(); }); }
 });
 
@@ -1158,8 +1244,9 @@ function runSearch() {
   if (!q) { resEl.hidden = true; resEl.innerHTML = ''; return; }
   var hits = bodies.filter(function (b) { return b.zh.toLowerCase().indexOf(q) >= 0 || b.en.toLowerCase().indexOf(q) >= 0; }).slice(0, 8);
   resEl.innerHTML = hits.length ? hits.map(function (b) {
-    return '<li><button type="button" data-id="' + b.id + '"><span>' + b.zh + '</span><small>' + b.en + '</small></button></li>';
+    return '<li><button type="button" data-id="' + b.id + '"><span>' + (S.lang==='zh'?b.zh:b.en) + '</span><small>' + (S.lang==='zh'?b.en:b.zh) + '</small></button></li>';
   }).join('') : '<li style="padding:8px;color:var(--muted)">找不到符合的天體</li>';
+  if(S.lang==='en')translateText(resEl);
   resEl.hidden = false;
 }
 qEl.addEventListener('input', runSearch);
@@ -1181,6 +1268,13 @@ function resize() {
 if (window.ResizeObserver) new ResizeObserver(resize).observe(app); else window.addEventListener('resize', resize);
 resize();
 $('speed').value = S.speed;
+$('moonScale').value = S.moonScale; $('moonScaleVal').textContent = nf(S.moonScale,1)+'×';
+['optPlanetOrbits','optMoonOrbits','optCometOrbits','optIrr','optLabels','optBelt'].forEach(function(id){var map={optPlanetOrbits:S.planetOrbits,optMoonOrbits:S.moonOrbits,optCometOrbits:S.cometOrbits,optIrr:S.irr,optLabels:S.labels,optBelt:S.belt};$(id).checked=map[id];});
+$('optCometOrbits').checked=S.cometOrbits; $('optLabels').checked=S.labels; labelsEl.classList.toggle('nolabels',!S.labels);
+Array.prototype.forEach.call(document.querySelectorAll('input[name=dist]'),function(r){r.checked=r.value===S.dist;});
+Array.prototype.forEach.call(document.querySelectorAll('input[name=viewMode]'),function(r){r.checked=r.value===(S.cometMode?'comets':'planets');});
+$('cometOptions').hidden=!S.cometMode; setDatePicker(); if(S.lang==='en'){S.lang='zh';toggleLanguage();}
+try { var hash=location.hash.slice(1), parts=hash.split('?'), id=decodeURIComponent(parts[0]||''), params=new URLSearchParams(parts[1]||''); if(params.get('date'))S.t=(Date.parse(params.get('date')+'T12:00:00Z')-J2000_MS)/86400000; if(params.get('mode'))S.cometMode=params.get('mode')==='comets'; var wanted=byId[id]; if(wanted){if(wanted.kind==='comet'&&!S.cometMode)setViewMode(true);else if(wanted.kind!=='comet'&&S.cometMode)setViewMode(false);select(wanted);} } catch(err) {}
 setPlayLabel();
 goHome();
 /* start from a settled overview instead of flying in from the placeholder camera */
