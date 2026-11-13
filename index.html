@@ -254,7 +254,7 @@ var D2R = Math.PI / 180, TAU = Math.PI * 2;
 var J2000_MS = Date.UTC(2000, 0, 1, 12, 0, 0);
 function nowDays() { return (Date.now() - J2000_MS) / 86400000; }
 function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
-function nf(x, d) { d = d || 0; return x.toLocaleString('zh-TW', { minimumFractionDigits: d, maximumFractionDigits: d }); }
+function nf(x, d) { d = d || 0; x = Number(x); if (!Number.isFinite(x)) return '—'; return x.toLocaleString('zh-TW', { minimumFractionDigits: d, maximumFractionDigits: d }); }
 function rngFrom(str) {
   var h = 1779033703 ^ str.length;
   for (var i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
@@ -1112,8 +1112,8 @@ function renderInfo() {
 }
 function updateLive() {
   var el = document.getElementById('liveDist'); if (!el || !sel) return;
-  if (sel.kind === 'moon') el.textContent = nf(sel.rKm) + ' km';
-  else if (sel.kind !== 'sun') el.textContent = nf(sel.rAU, 2) + ' AU（光行 ' + nf(sel.rAU * 8.317, 1) + ' 分）';
+  if (sel.kind === 'moon') el.textContent = nf(Number.isFinite(sel.rKm)?sel.rKm:sel.a) + ' km';
+  else if (sel.kind !== 'sun' && Number.isFinite(sel.rAU)) el.textContent = nf(sel.rAU, 2) + ' AU（光行 ' + nf(sel.rAU * 8.317, 1) + ' 分）';
 }
 infoEl.addEventListener('click', function (e) {
   var t = e.target.closest('button'); if (!t) return;
@@ -1430,7 +1430,7 @@ $('optCometOrbits').checked=S.cometOrbits; $('optLabels').checked=S.labels; labe
 Array.prototype.forEach.call(document.querySelectorAll('input[name=dist]'),function(r){r.checked=r.value===S.dist;});
 Array.prototype.forEach.call(document.querySelectorAll('input[name=viewMode]'),function(r){r.checked=r.value===(S.missionMode?'missions':S.cometMode?'comets':'planets');});
 $('cometOptions').hidden=!S.cometMode; $('missionOptions').hidden=!S.missionMode; setDatePicker(); if(S.lang==='en'){S.lang='zh';toggleLanguage();}
-var bootWanted=null;try { var hash=location.hash.slice(1), parts=hash.split('?'), id=decodeURIComponent(parts[0]||''), params=new URLSearchParams(parts[1]||''); if(params.get('date'))S.t=(Date.parse(params.get('date')+'T12:00:00Z')-J2000_MS)/86400000; if(params.get('mode')){S.missionMode=params.get('mode')==='missions';S.cometMode=params.get('mode')==='comets';} var wanted=byId[id]; if(wanted){bootWanted=wanted;if(wanted.kind==='mission'&&!S.missionMode)setViewMode('missions',false);else if(wanted.kind==='comet'&&!S.cometMode)setViewMode('comets',false);else if(wanted.kind!=='comet'&&wanted.kind!=='mission'&&(S.cometMode||S.missionMode))setViewMode('planets',false);if(wanted.kind==='mission')$('missionSelect').value=wanted.id;} } catch(err) {}
+var bootWanted=null;try { var hashState=location.hash.slice(1), parts=hashState.split('?'), id=decodeURIComponent(parts[0]||''), params=new URLSearchParams(parts[1]||''); if(params.get('date'))S.t=(Date.parse(params.get('date')+'T12:00:00Z')-J2000_MS)/86400000; if(params.get('mode')){S.missionMode=params.get('mode')==='missions';S.cometMode=params.get('mode')==='comets';} var wanted=byId[id]; if(wanted){bootWanted=wanted;if(wanted.kind==='mission'&&!S.missionMode)setViewMode('missions',false);else if(wanted.kind==='comet'&&!S.cometMode)setViewMode('comets',false);else if(wanted.kind!=='comet'&&wanted.kind!=='mission'&&(S.cometMode||S.missionMode))setViewMode('planets',false);if(wanted.kind==='mission')$('missionSelect').value=wanted.id;} } catch(err) {}
 setPlayLabel();
 goHome();
 /* start from a settled overview instead of flying in from the placeholder camera */
