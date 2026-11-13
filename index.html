@@ -143,6 +143,16 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
 
   <aside id="layers" class="panel" hidden aria-label="圖層設定">
     <div class="group">
+      <h3>天體模式</h3>
+      <label class="radio"><input type="radio" name="viewMode" value="planets" checked>行星系統</label>
+      <label class="radio"><input type="radio" name="viewMode" value="comets">彗星</label>
+    </div>
+    <div class="group" id="cometOptions" hidden>
+      <h3>彗星顯示</h3>
+      <label class="check"><input type="checkbox" id="optCometOrbits" checked>彗星軌道</label>
+      <p class="note">收錄 7 顆代表性彗星，軌道參數取自 JPL。彗核放大顯示，點選彗星可追蹤。</p>
+    </div>
+    <div class="group">
       <h3>顯示</h3>
       <label class="check"><input type="checkbox" id="optPlanetOrbits" checked>行星與矮行星軌道</label>
       <label class="check"><input type="checkbox" id="optMoonOrbits" checked>衛星軌道</label>
@@ -207,12 +217,15 @@ function rngFrom(str) {
 function kepler(M, e) {
   M = ((M % TAU) + TAU) % TAU;
   var E = e < 0.8 ? M : Math.PI;
-  for (var k = 0; k < 12; k++) { E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); }
+  for (var k = 0; k < 24; k++) { E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E)); }
   return E;
 }
 /* position in the orbit's reference frame (Z = pole), same unit as a */
 function orbitVec(a, e, iDeg, omDeg, wDeg, E) {
   var x = a * (Math.cos(E) - e), y = a * Math.sqrt(1 - e * e) * Math.sin(E);
+  return orbitVecXY(x, y, iDeg, omDeg, wDeg);
+}
+function orbitVecXY(x, y, iDeg, omDeg, wDeg) {
   var i = iDeg * D2R, O = omDeg * D2R, w = wDeg * D2R;
   var cw = Math.cos(w), sw = Math.sin(w), cO = Math.cos(O), sO = Math.sin(O), ci = Math.cos(i), si = Math.sin(i);
   return [
@@ -387,6 +400,17 @@ var DWARFS = [
   { id: 'quaoar', zh: '創神星', en: 'Quaoar', kind: 'cand', a: 43.7, e: 0.0415, i: 7.99, om: 188.8, w: 336.3, L: 356, P: 288.8, R: 555, ob: 0, col: '#b5806a', tint: '#b5806a', approx: true },
   { id: 'gonggong', zh: '共工星', en: 'Gonggong', kind: 'cand', a: 67.5, e: 0.5, i: 30.6, om: 336.9, w: 183.9, L: 276, P: 554, R: 615, ob: 0, col: '#b3705e', tint: '#b3705e', approx: true }
 ];
+/* Selected comet orbits from the JPL Small-Body Database. tpDays is TDB Julian date minus J2000 JD.
+   [id, Chinese name, English name, q AU, e, i, node, periapsis argument, perihelion JD, period days, mean motion deg/day, orbit solution] */
+var COMETS = [
+  ['1p-halley', '哈雷彗星', '1P/Halley', .5748638314, .9679359957, 162.1905300, 59.0989472, 112.2414315, 2446469.973616, 27728.04609, .01298324443, 'JPL 75'],
+  ['2p-encke', '恩克彗星', '2P/Encke', .3394124461, .8469969226, 11.3396124, 334.0138094, 187.2834305, 2460240.034840, 1206.812565, .2983064730, 'JPL K273/29'],
+  ['67p', '楚留莫夫－格拉希門克彗星', '67P/Churyumov-Gerasimenko', 1.243265641, .6409081309, 7.0402949, 50.1355738, 12.7982497, 2457247.588658, 2353.076068, .1529912292, 'JPL K284/1'],
+  ['109p-swift-tuttle', '斯威夫特－塔特爾彗星', '109P/Swift-Tuttle', .9595161551, .9632257550, 113.4538170, 139.3811921, 152.9821676, 2448968.499785, 48681.19346, .007395052882, 'JPL 32'],
+  ['c1995-o1', '海爾－波普彗星', 'C/1995 O1 (Hale-Bopp)', .8905376635, .9949810028, 89.2875942, 282.7334214, 130.4146671, 2450537.134907, 863279.5035, .0004170144183, 'JPL 226'],
+  ['c2020-f3', 'NEOWISE 彗星', 'C/2020 F3 (NEOWISE)', .2946512494, .9991780263, 128.9375028, 61.0104282, 37.2786584, 2459034.178898, 2478985.218, .0001452207126, 'JPL 31'],
+  ['c2023-a3', '紫金山－阿特拉斯彗星', 'C/2023 A3 (Tsuchinshan-ATLAS)', .3914300748, 1.000095369, 139.1121091, 21.5594790, 308.4917649634, 2460581.240845, null, .00000374826677, 'JPL 113']
+];
 /* moons: [en, zh, a (thousand km), period (d), e, i (deg), R (km), flags, extra]  flags: I = irregular, E = inclination measured from ecliptic, A = approximate */
 var MOONS = {
   earth: [
@@ -548,7 +572,7 @@ var MOON_TINT = { Moon: '#d2d0cb', Io: '#e8d06a', Europa: '#dccfb6', Ganymede: '
 var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 var SPEEDS = [1 / 24, 0.25, 1, 3, 10, 30, 365.25, 3652.5];
 var SPEED_LABELS = ['1 小時 / 秒', '6 小時 / 秒', '1 天 / 秒', '3 天 / 秒', '10 天 / 秒', '30 天 / 秒', '1 年 / 秒', '10 年 / 秒'];
-var S = { t: nowDays(), playing: !reduceMotion, dir: 1, speed: 5, dist: 'lin', moonScale: 1, planetOrbits: true, moonOrbits: true, irr: true, labels: true, belt: true };
+var S = { t: nowDays(), playing: !reduceMotion, dir: 1, speed: 5, dist: 'lin', moonScale: 1, planetOrbits: true, moonOrbits: true, cometOrbits: true, cometMode: false, irr: true, labels: true, belt: true };
 var SUN_R = 4;
 function mapAU(r) { return S.dist === 'comp' ? 12 * Math.pow(r, 0.6) : 25 * r; }
 var PLANET_SCALE = 1.5; /* 行星顯示比例：越大越容易看清楚 */
@@ -560,12 +584,12 @@ var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0x050812, 1);
 var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera(48, 1, 0.01, 30000);
+var camera = new THREE.PerspectiveCamera(48, 1, 0.01, 100000);
 camera.position.set(0, 120, 200);
 /* minimal orbit controls: drag to rotate, wheel / pinch to zoom */
 function SimpleOrbit(cam, el) {
   var self = this, dTheta = 0, dPhi = 0, pointers = {}, pinch0 = 0, off = new THREE.Vector3();
-  this.target = new THREE.Vector3(); this.minDistance = 1; this.maxDistance = 20000;
+  this.target = new THREE.Vector3(); this.minDistance = 1; this.maxDistance = 50000;
   this.rotateSpeed = 0.7; this.dampingFactor = 0.08; this.enableDamping = true; this.enablePan = false;
   function pinchDist() {
     var ids = Object.keys(pointers); if (ids.length < 2) return 0;
@@ -613,7 +637,7 @@ function SimpleOrbit(cam, el) {
 }
 var controls = new SimpleOrbit(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08; controls.enablePan = false;
-controls.rotateSpeed = 0.7; controls.maxDistance = 20000; controls.minDistance = 4;
+controls.rotateSpeed = 0.7; controls.maxDistance = 50000; controls.minDistance = 4;
 
 scene.add(new THREE.AmbientLight(0x3a4668, 1.05));
 var sunLight = new THREE.PointLight(0xfff1dc, 1.55, 0);
@@ -683,6 +707,21 @@ function buildBody(d) {
 var planetList = PLANETS.map(buildBody), dwarfList = DWARFS.map(buildBody);
 var parents = planetList.concat(dwarfList);
 
+function buildComet(d) {
+  var c = addBody({ id: d[0], kind: 'comet', zh: d[1], en: d[2], q: d[3], e: d[4], i: d[5], om: d[6], w: d[7], tpJD: d[8],
+    P: d[9], meanMotion: d[10], orbitRef: d[11], a: d[4] < 1 ? d[3] / (1 - d[4]) : d[3] / (d[4] - 1), col: '#9fe8ed', R: 1 });
+  c.tpDays = c.tpJD - 2451545.0;
+  c.size = 0.62; c.grp = new THREE.Group(); scene.add(c.grp); c.obj = c.grp;
+  var mat = new THREE.MeshStandardMaterial({ color: 0xd9f3f4, emissive: 0x294c55, roughness: 1, metalness: 0 });
+  c.mesh = new THREE.Mesh(sphereLo, mat); c.mesh.scale.setScalar(c.size); c.grp.add(c.mesh);
+  c.lineMat = new THREE.LineBasicMaterial({ color: 0x75cbd6, transparent: true, opacity: 0.65, depthWrite: false });
+  c.line = c.e < 1 ? new THREE.LineLoop(new THREE.BufferGeometry(), c.lineMat) : new THREE.Line(new THREE.BufferGeometry(), c.lineMat);
+  c.line.frustumCulled = false; scene.add(c.line);
+  buildCometLine(c);
+  return c;
+}
+var cometList = COMETS.map(buildComet);
+
 /* moons */
 var moonList = [];
 parents.forEach(function (p) {
@@ -724,6 +763,34 @@ function helio(v, aAU) {
   /* Scale each orbit from its semi-major axis so the display compression does not alter its eccentricity. */
   var k = aAU ? mapAU(aAU) / aAU : mapAU(r) / r;
   return [v[0] * k, v[2] * k, -v[1] * k];
+}
+function cometOrbitPoint(c, tDays) {
+  if (c.e < 1) {
+    var E = kepler(TAU * (tDays - c.tpDays) / c.P, c.e);
+    return orbitVec(c.a, c.e, c.i, c.om, c.w, E);
+  }
+  var M = c.meanMotion * D2R * (tDays - c.tpDays), H = Math.asinh(M / Math.max(c.e - 1, 1e-8));
+  for (var k = 0; k < 32; k++) {
+    var step = (c.e * Math.sinh(H) - H - M) / (c.e * Math.cosh(H) - 1);
+    H -= step;
+    if (Math.abs(step) < 1e-12) break;
+  }
+  return orbitVecXY(c.a * (c.e - Math.cosh(H)), c.a * Math.sqrt(c.e * c.e - 1) * Math.sinh(H), c.i, c.om, c.w);
+}
+function buildCometLine(c) {
+  var N = c.e < 1 ? 520 : 240, arr = new Float32Array(N * 3), ref = c.e < 1 ? c.a : c.q;
+  for (var k = 0; k < N; k++) {
+    var v;
+    if (c.e < 1) v = orbitVec(c.a, c.e, c.i, c.om, c.w, k / N * TAU);
+    else {
+      var rLimit = 80, Hmax = Math.acosh(Math.max(1, (rLimit / c.a + 1) / c.e));
+      var H = -Hmax + 2 * Hmax * k / (N - 1);
+      v = orbitVecXY(c.a * (c.e - Math.cosh(H)), c.a * Math.sqrt(c.e * c.e - 1) * Math.sinh(H), c.i, c.om, c.w);
+    }
+    arr.set(helio(v, ref), k * 3);
+  }
+  c.line.geometry.dispose(); c.line.geometry = new THREE.BufferGeometry();
+  c.line.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
 }
 function moonMap(m, v) {
   var p = m.parent, x = m.a / p.R;
@@ -790,6 +857,10 @@ function focusDist(b) {
 }
 function minDist(b) { return b.kind === 'moon' ? b.size * 1.6 : b.size * (b.kind === 'sun' ? 1.3 : 1.25); }
 function overviewDist() { return mapAU(52) * 2.3; }
+function cometOverviewDist() {
+  var maxAphelion = cometList.reduce(function (max, c) { return c.e < 1 ? Math.max(max, c.a * (1 + c.e)) : Math.max(max, c.q * 2); }, 1);
+  return clamp(mapAU(maxAphelion) * 2.35, 120, controls.maxDistance * 0.9);
+}
 function focusOn(b, opts) {
   opts = opts || {};
   follow = b;
@@ -798,6 +869,8 @@ function focusOn(b, opts) {
   controls.minDistance = minDist(b);
 }
 function select(b) {
+  if (b.kind === 'comet' && !S.cometMode) setViewMode(true);
+  else if (b.kind !== 'comet' && S.cometMode) setViewMode(false);
   if (b.kind === 'moon' && b.irr && !S.irr) { S.irr = true; document.getElementById('optIrr').checked = true; }
   sel = b === sun ? sun : b;
   if (b.mesh && b.mesh.material && b.mesh.material.map) prioritize(b.mesh.material.map);
@@ -808,7 +881,7 @@ function select(b) {
 }
 function goHome() {
   sel = null; infoEl.hidden = true;
-  focusOn(sun, { dist: overviewDist(), dir: new THREE.Vector3(0, 0.5, 0.86).normalize() });
+  focusOn(sun, { dist: S.cometMode ? cometOverviewDist() : overviewDist(), dir: new THREE.Vector3(0, 0.5, 0.86).normalize() });
   controls.minDistance = 4;
   refreshLines();
 }
@@ -829,17 +902,18 @@ function zoomIn() {
   if (!sel && follow === sun) {
     var rect = canvas.getBoundingClientRect();
     var b = pick(rect.left + rect.width / 2, rect.top + rect.height / 2, false);
-    select(b && b !== sun ? b : byId.earth);
+    select(b && b !== sun ? b : (S.cometMode ? cometList[0] : byId.earth));
   }
   controls.zoomBy(0.5);
 }
 function refreshLines() {
   parents.forEach(function (p) { p.lineMat.opacity = (sel === p) ? 1 : 0.5; });
+  cometList.forEach(function (c) { c.lineMat.opacity = (sel === c) ? 1 : 0.65; });
 }
 
 /* ---------- info panel ---------- */
 function kindLabel(b) {
-  return { sun: '恆星', planet: '行星', dwarf: '矮行星', cand: '矮行星候選', moon: b.irr ? '不規則衛星' : '衛星' }[b.kind];
+  return { sun: '恆星', planet: '行星', dwarf: '矮行星', cand: '矮行星候選', moon: b.irr ? '不規則衛星' : '衛星', comet: '彗星' }[b.kind];
 }
 function fmtPeriodDays(d) { if (d < 1) return nf(d * 24, 1) + ' 小時'; if (d < 730) return nf(d, d < 10 ? 3 : 1) + ' 天'; return nf(d / 365.25, 1) + ' 年'; }
 function fmtSpin(h) { var a = Math.abs(h), s = a < 48 ? nf(a, 2) + ' 小時' : nf(a / 24, 1) + ' 天'; return h < 0 ? s + '（逆向）' : s; }
@@ -856,6 +930,10 @@ function renderInfo() {
       row('離心率', nf(b.e, 4)) + row('軌道傾角', nf(b.i, 1) + '°' + (b.i > 90 ? '（逆行）' : '')) +
       row('半徑', nf(b.R, b.R < 20 ? 1 : 0) + ' km') + row('目前距離', '—', 'liveDist');
     if (b.approx) h += row('資料', '軌道為估計值');
+  } else if (b.kind === 'comet') {
+    h += row('近日點距離', nf(b.q, 3) + ' AU') + row('近日點通過', b.tpJD ? new Date((b.tpJD - 2440587.5) * 86400000).toISOString().slice(0, 10) : '—') +
+      row('公轉週期', b.P ? fmtPeriodDays(b.P) : '開放軌道') + row('離心率', nf(b.e, 6)) +
+      row('軌道傾角', nf(b.i, 2) + '°' + (b.i > 90 ? '（逆行）' : '')) + row('軌道資料', b.orbitRef) + row('彗核大小', '放大顯示，非比例尺寸');
   } else {
     h += row('半長軸', nf(b.a, 2) + ' AU') + row('公轉週期', b.P < 2 ? nf(b.P * 365.25, 1) + ' 天' : nf(b.P, 1) + ' 年') +
       row('離心率', nf(b.e, 4)) + row('軌道傾角', nf(b.i, 2) + '°') + row('半徑', nf(b.R, 0) + ' km');
@@ -895,6 +973,10 @@ function updateBodies(dt) {
     var p = helio(v, b.a); b.grp.position.set(p[0], p[1], p[2]);
     if (S.playing) b.mesh.rotation.y += b.spin * dt;
   });
+  cometList.forEach(function (c) {
+    var v = cometOrbitPoint(c, t), p = helio(v, c.e < 1 ? c.a : c.q);
+    c.rAU = Math.hypot(v[0], v[1], v[2]); c.grp.position.set(p[0], p[1], p[2]);
+  });
   moonList.forEach(function (m) {
     var E = kepler(m.M0 * D2R + TAU * (t - m.epochDays) / m.P, m.e), v = orbitVec(m.a, m.e, m.i, m.om, m.w, E);
     m.rKm = Math.hypot(v[0], v[1], v[2]);
@@ -908,7 +990,7 @@ function updateBodies(dt) {
     }
     beltGeo.attributes.position.needsUpdate = true;
   }
-  beltPts.visible = S.belt;
+  beltPts.visible = S.belt && !S.cometMode;
 }
 
 var W = 1, H = 1;
@@ -916,7 +998,9 @@ function updateOverlay() {
   var sys = activeSys(), tanHalf = Math.tan(camera.fov * D2R / 2);
   bodies.forEach(function (b) {
     var show = true, pickable = true;
-    if (b.kind === 'moon') { show = (sys === b.parent) && (S.irr || !b.irr); pickable = show; }
+    if (S.cometMode) { show = b.kind === 'comet' || b.kind === 'sun'; pickable = show; }
+    else if (b.kind === 'comet') { show = false; pickable = false; }
+    else if (b.kind === 'moon') { show = (sys === b.parent) && (S.irr || !b.irr); pickable = show; }
     worldPos(b, tmpV);
     var camDist = tmpV.distanceTo(camera.position);
     tmpV.project(camera);
@@ -930,13 +1014,20 @@ function updateOverlay() {
     if (b.tagOn !== on) { b.tag.classList.toggle('on', on); b.tagOn = on; }
   });
   parents.forEach(function (p) {
-    p.line.visible = S.planetOrbits;
+    p.grp.visible = !S.cometMode;
+    p.line.visible = !S.cometMode && S.planetOrbits;
     var active = sys === p;
     var base = S.moonOrbits;
     if (p.moonLineReg) p.moonLineReg.opacity = active ? 0.7 : 0.16;
     if (p.moonLineIrr) p.moonLineIrr.opacity = active ? 0.55 : 0.1;
     p.moons.forEach(function (m) { m.line.visible = base && (S.irr || !m.irr); });
   });
+  cometList.forEach(function (c) {
+    c.grp.visible = S.cometMode;
+    c.line.visible = S.cometMode && S.cometOrbits;
+  });
+  sun.obj.visible = true;
+  beltPts.visible = S.belt && !S.cometMode;
 }
 
 var last = performance.now(), lastInfo = 0, rebuildQueued = false;
@@ -1034,9 +1125,20 @@ $('btnLayers').addEventListener('click', function () {
 });
 $('optPlanetOrbits').addEventListener('change', function () { S.planetOrbits = this.checked; });
 $('optMoonOrbits').addEventListener('change', function () { S.moonOrbits = this.checked; });
+$('optCometOrbits').addEventListener('change', function () { S.cometOrbits = this.checked; });
 $('optIrr').addEventListener('change', function () { S.irr = this.checked; });
 $('optLabels').addEventListener('change', function () { S.labels = this.checked; labelsEl.classList.toggle('nolabels', !this.checked); });
 $('optBelt').addEventListener('change', function () { S.belt = this.checked; });
+function setViewMode(comets) {
+  S.cometMode = comets;
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=viewMode]'), function (r) { r.checked = (r.value === (comets ? 'comets' : 'planets')); });
+  $('cometOptions').hidden = !comets;
+  sel = null; infoEl.hidden = true; controls.minDistance = 4;
+  goHome(); refreshLines();
+}
+Array.prototype.forEach.call(document.querySelectorAll('input[name=viewMode]'), function (r) {
+  r.addEventListener('change', function () { if (this.checked) setViewMode(this.value === 'comets'); });
+});
 Array.prototype.forEach.call(document.querySelectorAll('input[name=dist]'), function (r) {
   r.addEventListener('change', function () {
     if (!this.checked) return;
