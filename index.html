@@ -152,8 +152,8 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
     </div>
     <div class="group">
       <h3>行星間距</h3>
-      <label class="radio"><input type="radio" name="dist" value="comp" checked>壓縮（內外行星都看得清楚）</label>
-      <label class="radio"><input type="radio" name="dist" value="lin">線性（與 AU 成正比）</label>
+      <label class="radio"><input type="radio" name="dist" value="comp">展示壓縮（方便看清全部行星）</label>
+      <label class="radio"><input type="radio" name="dist" value="lin" checked>依 AU 比例（行星間距較符合實際）</label>
     </div>
     <div class="group">
       <h3>衛星軌道</h3>
@@ -486,7 +486,7 @@ var MOON_TINT = { Moon: '#d2d0cb', Io: '#e8d06a', Europa: '#dccfb6', Ganymede: '
 var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 var SPEEDS = [1 / 24, 0.25, 1, 3, 10, 30, 365.25, 3652.5];
 var SPEED_LABELS = ['1 小時 / 秒', '6 小時 / 秒', '1 天 / 秒', '3 天 / 秒', '10 天 / 秒', '30 天 / 秒', '1 年 / 秒', '10 年 / 秒'];
-var S = { t: nowDays(), playing: !reduceMotion, dir: 1, speed: 5, dist: 'comp', moonScale: 1, planetOrbits: true, moonOrbits: true, irr: true, labels: true, belt: true };
+var S = { t: nowDays(), playing: !reduceMotion, dir: 1, speed: 5, dist: 'lin', moonScale: 1, planetOrbits: true, moonOrbits: true, irr: true, labels: true, belt: true };
 var SUN_R = 4;
 function mapAU(r) { return S.dist === 'comp' ? 12 * Math.pow(r, 0.6) : 25 * r; }
 var PLANET_SCALE = 1.5; /* 行星顯示比例：越大越容易看清楚 */
