@@ -161,7 +161,7 @@ dl.facts dd { margin: 0; text-align: right; font: 400 13px/1.5 var(--font-mono);
         <label for="moonScale"><span>展開程度</span><span id="moonScaleVal">1.0×</span></label>
         <input type="range" id="moonScale" min="0.4" max="2" step="0.05" value="1">
       </div>
-      <p class="note">天體大小與衛星距離為了看得見而放大、壓縮，軌道形狀與傾角則依實際參數繪製。</p>
+      <p class="note">主要衛星依 JPL 平均軌道元素繪製；未列入資料表的衛星為示意軌道。天體大小與距離經比例調整。</p>
     </div>
   </aside>
 
@@ -390,7 +390,7 @@ var DWARFS = [
 /* moons: [en, zh, a (thousand km), period (d), e, i (deg), R (km), flags, extra]  flags: I = irregular, E = inclination measured from ecliptic, A = approximate */
 var MOONS = {
   earth: [
-    ['Moon', '月球', 384.4, 27.3217, 0.0549, 5.145, 1737.4, 'E', { om: 125.08, w: 318.15, M0: 134.96 }]
+    ['Moon', '月球', 384.4, 27.3217, 0.0549, 5.145, 1737.4, 'E']
   ],
   mars: [
     ['Phobos', '火衛一', 9.376, 0.3189, 0.0151, 1.08, 11.1],
@@ -479,6 +479,68 @@ var MOONS = {
   orcus: [['Vanth', '亡衛一', 9, 9.54, 0.0, 0, 221, 'A']],
   quaoar: [['Weywot', '創衛一', 13.3, 12.4, 0.14, 0, 40, 'A']],
   gonggong: [['Xiangliu', '象柳', 24, 25.2, 0.3, 0, 50, 'A']]
+};
+/* JPL mean elements: [a km, e, argument of periapsis, mean anomaly, i, ascending node, period days, epoch J2000 days, reference frame].
+   JPL notes these describe general orbit shape/orientation, not precision ephemerides. */
+var JPL_MOON_ELEMENTS = {
+  'earth/Moon': [384400, .0554, 318.15, 135.27, 5.16, 125.08, 27.322, 0, 'ecliptic'],
+  'mars/Phobos': [9375, .015, 216.3, 189.7, 1.1, 169.2, .3187, 0, 'equatorial'],
+  'mars/Deimos': [23457, 0, 0, 205, 1.8, 54.3, 1.2625, 0, 'equatorial'],
+  'jupiter/Io': [421800, .004, 49.1, 330.9, 0, 0, 1.762732, 0, 'equatorial'],
+  'jupiter/Europa': [671100, .009, 45, 345.4, .5, 184, 3.525463, 0, 'equatorial'],
+  'jupiter/Ganymede': [1070400, .001, 198.3, 324.8, .2, 58.5, 7.155588, 0, 'equatorial'],
+  'jupiter/Callisto': [1882700, .007, 43.8, 87.4, .3, 309.1, 16.69044, 0, 'equatorial'],
+  'jupiter/Amalthea': [181400, .003, 180.1, 310.6, .4, 282.9, .499918, 0, 'equatorial'],
+  'jupiter/Thebe': [221900, .018, 26.6, 182.1, 1.1, 340.4, .676105, 0, 'equatorial'],
+  'jupiter/Adrastea': [129000, 0, 0, 214.5, 0, 0, .29826, 0, 'equatorial'],
+  'jupiter/Metis': [128000, 0, 0, 166, 0, 0, .294779, 0, 'equatorial'],
+  'jupiter/Himalia': [11439000, .16, 321.1, 78.3, 28.4, 64.2, 249.909, 0, 'ecliptic'],
+  'jupiter/Elara': [11710700, .212, 129.9, 346.9, 27.8, 112.8, 258.8861, 0, 'ecliptic'],
+  'jupiter/Lysithea': [11699100, .117, 48.3, 328.5, 27.7, 9.2, 258.5035, 0, 'ecliptic'],
+  'jupiter/Ananke': [21029500, .238, 78.8, 271.7, 147.6, 13.7, 623.1097, 0, 'ecliptic'],
+  'jupiter/Carme': [23139200, .261, 6.5, 259.5, 164.6, 115.5, 719.2806, 0, 'ecliptic'],
+  'jupiter/Pasiphae': [23463200, .412, 172.8, 279.3, 148.3, 315.7, 734.4215, 0, 'ecliptic'],
+  'jupiter/Sinope': [23679300, .262, 354.3, 157.4, 157.3, 308, 744.5951, 0, 'ecliptic'],
+  'saturn/Mimas': [186000, .02, 160.4, 275.3, 1.6, 66.2, .942422, 0, 'equatorial'],
+  'saturn/Enceladus': [238400, .005, 119.5, 57, 0, 0, 1.370218, 0, 'equatorial'],
+  'saturn/Tethys': [295000, .001, 335.3, 0, 1.1, 273, 1.887802, 0, 'equatorial'],
+  'saturn/Dione': [377700, .002, 116, 212, 0, 0, 2.736916, 0, 'equatorial'],
+  'saturn/Rhea': [527200, .001, 44.3, 31.5, .3, 133.7, 4.517503, 0, 'equatorial'],
+  'saturn/Titan': [1221900, .029, 78.3, 11.7, .3, 78.6, 15.945448, 0, 'equatorial'],
+  'saturn/Hyperion': [1481500, .105, 214, 122.9, .6, 87.1, 21.276658, 0, 'equatorial'],
+  'saturn/Iapetus': [3561700, .028, 254.5, 74.8, 7.6, 86.5, 79.331002, 0, 'equatorial'],
+  'saturn/Phoebe': [12929400, .164, 240.3, 308, 175.2, 192.7, 550.30391, 0, 'ecliptic'],
+  'uranus/Cordelia': [49755, 0, 0, 287.4, .2, 1.1, .3347, 9131.5, 'equatorial'],
+  'uranus/Ophelia': [53765, .011, 19.3, 213.4, .2, 151.6, .3764, 9131.5, 'equatorial'],
+  'uranus/Bianca': [59170, .006, 328, 109.1, 2.3, 272.5, .4347, 9131.5, 'equatorial'],
+  'uranus/Cressida': [61770, .004, 87.9, .5, 1.8, 308.2, .4639, 9131.5, 'equatorial'],
+  'uranus/Desdemona': [62663, .007, 137, 230, 3.1, 283.9, .4736, 9131.5, 'equatorial'],
+  'uranus/Juliet': [64362, .006, 274.9, 319.8, 3, 141, .4931, 9131.5, 'equatorial'],
+  'uranus/Portia': [66101, .004, 31.6, 310.1, 2.7, 146.7, .5132, 9131.5, 'equatorial'],
+  'uranus/Rosalind': [69930, .003, 231.8, 287.7, 1.7, 330, .5583, 9131.5, 'equatorial'],
+  'uranus/Belinda': [75258, .002, 58.6, 226.4, 1.4, 96.2, .6236, 9131.5, 'equatorial'],
+  'uranus/Puck': [86007, .009, 337, 264.1, 1.1, 111.2, .7618, 9131.5, 'equatorial'],
+  'uranus/Miranda': [129846, .001, 154.8, 73, 4.4, 100.9, 1.413479, 0, 'equatorial'],
+  'uranus/Ariel': [190929, .001, 9.6, 193.5, 0, 0, 2.520379, 0, 'equatorial'],
+  'uranus/Umbriel': [265986, .004, 183.4, 253, .1, 174.8, 4.144177, 0, 'equatorial'],
+  'uranus/Titania': [436298, .002, 184, 68.1, .1, 29.5, 8.705869, 0, 'equatorial'],
+  'uranus/Oberon': [583511, .002, 132.2, 143.6, .1, 76.8, 13.463237, 0, 'equatorial'],
+  'uranus/Caliban': [7167000, .2, 349.7, 241.2, 141.4, 174.9, 580, 7304.5, 'ecliptic'],
+  'uranus/Sycorax': [12193200, .52, 25.4, 332.1, 157, 267.1, 1286, 7304.5, 'ecliptic'],
+  'neptune/Naiad': [48300, .001, 144.5, 6.1, 4.7, 38.7, .2951, 0, 'equatorial'],
+  'neptune/Thalassa': [50100, .001, 223.6, 3, .2, 124.7, .3118, 0, 'equatorial'],
+  'neptune/Despina': [52600, .001, 182.1, 354.1, 0, 0, .3347, 0, 'equatorial'],
+  'neptune/Galatea': [62000, .001, 113.9, 12, 0, 0, .4292, 0, 'equatorial'],
+  'neptune/Larissa': [73600, .001, 222, 215.1, .2, 317.4, .5549, 0, 'equatorial'],
+  'neptune/Hippocamp': [105300, .001, 323.3, 322.3, .3, 4, .9507, 0, 'equatorial'],
+  'neptune/Proteus': [117700, .001, 357.2, 297.4, .6, 355.5, 1.1229, 0, 'equatorial'],
+  'neptune/Triton': [354800, 0, 0, 63, 157.3, 177.7, 5.8792, 0, 'equatorial'],
+  'neptune/Nereid': [5513900, .751, 296.8, 318.5, 5.1, 319.5, 360.133039, 7304.5, 'ecliptic'],
+  'pluto/Charon': [19600, 0, 0, 304.1, 0, 0, 6.387222, 0, 'equatorial'],
+  'pluto/Styx': [43200, .025, 322.5, 358.1, 0, 0, 20.16, 0, 'equatorial'],
+  'pluto/Nix': [49300, .015, 31.4, 338.2, 0, 0, 24.85, 0, 'equatorial'],
+  'pluto/Kerberos': [58300, .01, 32.1, 276.1, .4, 314.3, 32.17, 0, 'equatorial'],
+  'pluto/Hydra': [65200, .009, 139.3, 335, .3, 114.3, 38.2, 0, 'equatorial']
 };
 var MOON_TINT = { Moon: '#d2d0cb', Io: '#e8d06a', Europa: '#dccfb6', Ganymede: '#b3a797', Callisto: '#857d72', Titan: '#dca64b', Enceladus: '#f4f8ff', Triton: '#dcc9c4', Charon: '#a89f9a', Phobos: '#8a7f74', Deimos: '#8a7f74', Iapetus: '#a9a095', Miranda: '#bdb9b3', Ariel: '#c6c3bd', Titania: '#b9b2a8', Oberon: '#8f867c', Umbriel: '#6f6b67' };
 
@@ -628,14 +690,19 @@ parents.forEach(function (p) {
   p.moonLineReg = new THREE.LineBasicMaterial({ color: 0x7fc6ff, transparent: true, opacity: 0.3, depthWrite: false });
   p.moonLineIrr = new THREE.LineBasicMaterial({ color: 0x9a8fd8, transparent: true, opacity: 0.3, depthWrite: false });
   spec.forEach(function (s) {
-    var flags = s[7] || '', extra = s[8] || {}, rnd = rngFrom(p.id + s[0]);
+    var flags = s[7] || '', extra = s[8] || {}, elements = JPL_MOON_ELEMENTS[p.id + '/' + s[0]];
     var m = addBody({ id: (p.id + '-' + s[0]).toLowerCase(), kind: 'moon', parent: p, en: s[0], zh: s[1], a: s[2] * 1000, P: s[3], e: s[4], i: s[5], R: s[6],
       irr: flags.indexOf('I') >= 0, ecl: flags.indexOf('E') >= 0, approx: flags.indexOf('A') >= 0 });
-    m.om = rnd() * 360; m.w = rnd() * 360; m.M0 = rnd() * 360;
+    m.om = 0; m.w = 0; m.M0 = 0; m.epochDays = 0;
+    if (elements) {
+      m.a = elements[0]; m.e = elements[1]; m.w = elements[2]; m.M0 = elements[3]; m.i = elements[4]; m.om = elements[5]; m.P = elements[6]; m.epochDays = elements[7];
+      m.ecl = elements[8] === 'ecliptic';
+    } else if (!extra.lock) { m.approx = true; }
     if (extra.om !== undefined) { m.om = extra.om; m.w = extra.w; m.M0 = extra.M0; }
     if (extra.lock) {
       var base = byId[(p.id + '-' + extra.lock[0]).toLowerCase()];
       m.om = base.om; m.w = base.w; m.M0 = base.M0 + extra.lock[1];
+      m.approx = true; /* L4/L5 libration represented by a fixed 60-degree offset */
     }
     m.size = clamp(0.28 * p.size * Math.sqrt(m.R / p.R), 0.045, 0.5);
     m.col = m.irr ? '#b3a8f0' : '#9fd4ff';
@@ -652,16 +719,21 @@ parents.forEach(function (p) {
   p.sysR = 0;
 });
 
-function helio(v) { var r = Math.hypot(v[0], v[1], v[2]) || 1e-9, k = mapAU(r) / r; return [v[0] * k, v[2] * k, -v[1] * k]; }
+function helio(v, aAU) {
+  var r = Math.hypot(v[0], v[1], v[2]) || 1e-9;
+  /* Scale each orbit from its semi-major axis so the display compression does not alter its eccentricity. */
+  var k = aAU ? mapAU(aAU) / aAU : mapAU(r) / r;
+  return [v[0] * k, v[2] * k, -v[1] * k];
+}
 function moonMap(m, v) {
-  var p = m.parent, d = Math.hypot(v[0], v[1], v[2]) || 1e-9, x = d / p.R;
+  var p = m.parent, x = m.a / p.R;
   var g = x <= 2.6 ? x : 2.6 + Math.log(x / 2.6);
-  var mm = p.size * (1 + (g - 1) * S.moonScale), k = mm / d;
+  var mm = p.size * (1 + (g - 1) * S.moonScale), k = mm / m.a;
   return [v[0] * k, v[2] * k, -v[1] * k];
 }
 function buildPlanetLine(b) {
   var N = 400, arr = new Float32Array(N * 3);
-  for (var k = 0; k < N; k++) { arr.set(helio(orbitVec(b.a, b.e, b.i, b.om, b.omega, k / N * TAU)), k * 3); }
+  for (var k = 0; k < N; k++) { arr.set(helio(orbitVec(b.a, b.e, b.i, b.om, b.omega, k / N * TAU), b.a), k * 3); }
   b.line.geometry.dispose(); b.line.geometry = new THREE.BufferGeometry();
   b.line.geometry.setAttribute('position', new THREE.BufferAttribute(arr, 3));
 }
@@ -820,11 +892,11 @@ function updateBodies(dt) {
   parents.forEach(function (b) {
     var E = kepler(b.M0 + b.nDay * t, b.e), v = orbitVec(b.a, b.e, b.i, b.om, b.omega, E);
     b.rAU = Math.hypot(v[0], v[1], v[2]);
-    var p = helio(v); b.grp.position.set(p[0], p[1], p[2]);
+    var p = helio(v, b.a); b.grp.position.set(p[0], p[1], p[2]);
     if (S.playing) b.mesh.rotation.y += b.spin * dt;
   });
   moonList.forEach(function (m) {
-    var E = kepler(m.M0 * D2R + TAU * t / m.P, m.e), v = orbitVec(m.a, m.e, m.i, m.om, m.w, E);
+    var E = kepler(m.M0 * D2R + TAU * (t - m.epochDays) / m.P, m.e), v = orbitVec(m.a, m.e, m.i, m.om, m.w, E);
     m.rKm = Math.hypot(v[0], v[1], v[2]);
     var p = moonMap(m, v); m.mesh.position.set(p[0], p[1], p[2]);
     m.mesh.visible = S.irr || !m.irr;
