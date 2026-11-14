@@ -725,7 +725,8 @@ var sphereHi = new THREE.SphereGeometry(1, 96, 64), sphereLo = new THREE.SphereG
 var STAR_SKY_RADIUS=6000, starCatalog=window.BRIGHT_STAR_DATA||[], starClouds=[], starTemp=new THREE.Vector3();
 function starColor(bv,brightness){var c=bv==null?[.78,.85,1]:bv<-.15?[.48,.63,1]:bv<.15?[.7,.8,1]:bv<.45?[.9,.94,1]:bv<.8?[1,.91,.72]:bv<1.2?[1,.72,.48]:[1,.52,.38];return c.map(function(x){return x*brightness;});}
 function starDirection(s){var a=s.ra*D2R,d=s.dec*D2R,eps=23.439291*D2R,xe=Math.cos(d)*Math.cos(a),ye=Math.cos(d)*Math.sin(a),ze=Math.sin(d),yE=ye*Math.cos(eps)+ze*Math.sin(eps),zE=-ye*Math.sin(eps)+ze*Math.cos(eps);return new THREE.Vector3(xe,zE,-yE).normalize();}
-[[0,1.5,3.5],[1.5,3.5,2.35],[3.5,6.5,1.35]].forEach(function(bin){var items=starCatalog.filter(function(s){return s.mag>=bin[0]&&s.mag<bin[1];}),pos=new Float32Array(items.length*3),col=new Float32Array(items.length*3);items.forEach(function(s,i){s.dir=starDirection(s);var j=i*3,bright=.22+.78*Math.pow(10,-.4*Math.max(0,s.mag)),bv=Number(s.bv);pos[j]=s.dir.x*STAR_SKY_RADIUS;pos[j+1]=s.dir.y*STAR_SKY_RADIUS;pos[j+2]=s.dir.z*STAR_SKY_RADIUS;var c=starColor(Number.isFinite(bv)?bv:null,bright);col[j]=c[0];col[j+1]=c[1];col[j+2]=c[2];});var geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('color',new THREE.BufferAttribute(col,3));var points=new THREE.Points(geo,new THREE.PointsMaterial({size:bin[2],sizeAttenuation:false,vertexColors:true,depthWrite:false}));points.renderOrder=-10;points.frustumCulled=false;scene.add(points);starClouds.push(points);});
+starCatalog.forEach(function(s){s.dir=starDirection(s);});
+[[-Infinity,1.5,3.5],[1.5,3.5,2.35],[3.5,6.5,1.35]].forEach(function(bin){var items=starCatalog.filter(function(s){return s.mag>=bin[0]&&s.mag<bin[1];}),pos=new Float32Array(items.length*3),col=new Float32Array(items.length*3);items.forEach(function(s,i){var j=i*3,bright=.22+.78*Math.pow(10,-.4*Math.max(0,s.mag)),bv=Number(s.bv);pos[j]=s.dir.x*STAR_SKY_RADIUS;pos[j+1]=s.dir.y*STAR_SKY_RADIUS;pos[j+2]=s.dir.z*STAR_SKY_RADIUS;var c=starColor(Number.isFinite(bv)?bv:null,bright);col[j]=c[0];col[j+1]=c[1];col[j+2]=c[2];});var geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));geo.setAttribute('color',new THREE.BufferAttribute(col,3));var points=new THREE.Points(geo,new THREE.PointsMaterial({size:bin[2],sizeAttenuation:false,vertexColors:true,depthWrite:false}));points.renderOrder=-10;points.frustumCulled=false;scene.add(points);starClouds.push(points);});
 
 /* bodies */
 var bodies = [], byId = {};
@@ -1461,7 +1462,7 @@ goHome();
   camera.position.copy(dir.multiplyScalar(d)); controls.target.set(0, 0, 0);
   fly = null; follow = sun; controls.update();
 })();
-if(bootWanted){if(bootWanted.kind==='mission')select.lastMission=bootWanted.id;select(bootWanted);if(bootWanted.kind==='mission')$('missionSelect').value=bootWanted.id;}else if(S.missionMode&&missionList.length)select(missionList[0]);
+if(bootWanted){if(bootWanted.kind==='mission')select.lastMission=bootWanted.id;select(bootWanted);if(bootWanted.kind==='mission')$('missionSelect').value=bootWanted.id;if(bootWanted.kind==='sun'){S.playing=true;setPlayLabel();controls.minDistance=4;focusOn(sun,{dist:S.missionMode?mapAU(2.4)*1.8:S.cometMode?cometOverviewDist():overviewDist(),dir:new THREE.Vector3(0,.5,.86).normalize()});}}else if(S.missionMode&&missionList.length)select(missionList[0]);
 setTimeout(function () { var t = $('toast'); if (t) t.classList.add('gone'); }, 7000);
 requestAnimationFrame(function (n) { last = n; frame(n); });
 }
