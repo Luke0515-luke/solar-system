@@ -291,8 +291,20 @@ function orbitVecXY(x, y, iDeg, omDeg, wDeg) {
     x * (sw * si) + y * (cw * si)
   ];
 }
-/* NASA/JPL approximate elements and secular rates, referenced to J2000. */
-function planetElements(b, days){var T=days/36525,r=b.rates;if(!r)r=[0,0,0,0,0,0];var a=b.a+r[0]*T,e=b.e+r[1]*T,i=b.i+r[2]*T,L=b.L+r[3]*T,w=b.w+r[4]*T,om=b.om+r[5]*T;return{a:a,e:e,i:i,L:L,w:w,om:om,M:b.rates?(L-w)*D2R:b.M0+b.nDay*days};}
+/* NASA/JPL Table 1 is the higher-accuracy fit for 1800–2050. Table 2a/2b
+   supplies a long-range fit and periodic terms for dates outside that interval. */
+var JPL_TABLE1_START=(Date.UTC(1800,0,1)-J2000_MS)/86400000,JPL_TABLE1_END=(Date.UTC(2051,0,1)-J2000_MS)/86400000;
+var JPL_LONG_ELEMENTS={
+  mercury:{a:.38709843,e:.20563661,i:7.00559432,om:48.33961819,w:77.45771895,L:252.25166724,rates:[0,.00002123,-.00590158,149472.67486623,.15940013,-.12214182]},
+  venus:{a:.72332102,e:.00676399,i:3.39777545,om:76.67261496,w:131.76755713,L:181.97970850,rates:[-.00000026,-.00005107,.00043494,58517.81560260,.05679648,-.27274174]},
+  earth:{a:1.00000018,e:.01673163,i:-.00054346,om:-5.11260389,w:102.93005885,L:100.46691572,rates:[-.00000003,-.00003661,-.01337178,35999.37306329,.31795260,-.24123856]},
+  mars:{a:1.52371243,e:.09336511,i:1.85181869,om:49.71320984,w:-23.91744784,L:-4.56813164,rates:[.00000097,.00009149,-.00724757,19140.29934243,.45223625,-.26852431]},
+  jupiter:{a:5.20248019,e:.04853590,i:1.29861416,om:100.29282654,w:14.27495244,L:34.33479152,rates:[-.00002864,.00018026,-.00322699,3034.90371757,.18199196,.13024619],meanCorrection:[-.00012452,.06064060,-.35635438,38.35125]},
+  saturn:{a:9.54149883,e:.05550825,i:2.49424102,om:113.63998702,w:92.86136063,L:50.07571329,rates:[-.00003065,-.00032044,.00451969,1222.11494724,.54179478,-.25015002],meanCorrection:[.00025899,-.13434469,.87320147,38.35125]},
+  uranus:{a:19.18797948,e:.04685740,i:.77298127,om:73.96250215,w:172.43404441,L:314.20276625,rates:[-.00020455,-.00001550,-.00180155,428.49512595,.09266985,.05739699],meanCorrection:[.00058331,-.97731848,.17689245,7.67025]},
+  neptune:{a:30.06952752,e:.00895439,i:1.77005520,om:131.78635853,w:46.68158724,L:304.22289287,rates:[.00006447,.00000818,.00022400,218.46515314,.01009938,-.00606302],meanCorrection:[-.00041348,.68346318,-.10162547,7.67025]}
+};
+function planetElements(b,days){var T=days/36525,longFit=(days<JPL_TABLE1_START||days>=JPL_TABLE1_END)?JPL_LONG_ELEMENTS[b.id]:null,src=longFit||b,r=src.rates;if(!r)r=[0,0,0,0,0,0];var a=src.a+r[0]*T,e=src.e+r[1]*T,i=src.i+r[2]*T,L=src.L+r[3]*T,w=src.w+r[4]*T,om=src.om+r[5]*T,M=b.rates?(L-w)*D2R:b.M0+b.nDay*days;if(longFit&&longFit.meanCorrection){var c=longFit.meanCorrection;M+=(c[0]*T*T+c[1]*Math.cos(c[3]*D2R*T)+c[2]*Math.sin(c[3]*D2R*T))*D2R;}return{a:a,e:e,i:i,L:L,w:w,om:om,M:M};}
 
 /* ---------- procedural textures (no external images) ---------- */
 function hash(x, y) {
@@ -1012,7 +1024,7 @@ function focusOn(b, opts) {
   fly = { t: 0, from: controls.target.clone(), fromD: Math.max(cur, 0.05), toD: opts.dist || focusDist(b), toDir: opts.dir || null, fromDir: camera.position.clone().sub(controls.target).normalize() };
   controls.minDistance = minDist(b);
 }
-function focusSelection(b){if(b.kind==='star'){var d=Math.max(camera.position.distanceTo(controls.target),10);focusOn(sun,{dist:d,dir:b.dir.clone().negate()});}else if(!S.followLock&&(b.kind==='planet'||b.kind==='dwarf')){follow=sun;var d=clamp(Math.max(mapAU((b.a||1)*1.25),mapAU(1.8)*1.5),15,controls.maxDistance*.85);focusOn(sun,{dist:d,dir:new THREE.Vector3(0,.55,.84).normalize()});}else focusOn(b);}
+function focusSelection(b){if(b.kind==='star'){var d=Math.max(camera.position.distanceTo(controls.target),10);focusOn(sun,{dist:d,dir:b.dir.clone().negate()});}else if(!S.followLock&&(b.kind==='planet'||b.kind==='dwarf')){follow=sun;var d=clamp(Math.max(mapAU((b.a||1)*1.25),mapAU(1.8)*1.5),15,controls.maxDistance*.85);focusOn(sun,{dist:d,dir:new THREE.Vector3(0,.97,.24).normalize()});}else focusOn(b);}
 function select(b) {
   if (b.kind === 'mission' && !S.missionMode) setViewMode('missions',false);
   else if (b.kind !== 'mission' && b.kind !== 'star' && S.missionMode) setViewMode(b.kind === 'comet' ? 'comets' : 'planets',false);
@@ -1033,7 +1045,7 @@ function select(b) {
 }
 function goHome() {
   sel = null; infoEl.hidden = true;
-  focusOn(sun, { dist: S.missionMode ? mapAU(2.4)*1.8 : S.cometMode ? cometOverviewDist() : overviewDist(), dir: new THREE.Vector3(0, 0.5, 0.86).normalize() });
+  focusOn(sun, { dist: S.missionMode ? mapAU(2.4)*1.8 : S.cometMode ? cometOverviewDist() : overviewDist(), dir: new THREE.Vector3(0, 0.97, 0.24).normalize() });
   controls.minDistance = 4;
   refreshLines();
 }
@@ -1458,11 +1470,11 @@ setPlayLabel();
 goHome();
 /* start from a settled overview instead of flying in from the placeholder camera */
 (function () {
-  var d = overviewDist(), dir = new THREE.Vector3(0, 0.5, 0.86).normalize();
+  var d = overviewDist(), dir = new THREE.Vector3(0, 0.97, 0.24).normalize();
   camera.position.copy(dir.multiplyScalar(d)); controls.target.set(0, 0, 0);
   fly = null; follow = sun; controls.update();
 })();
-if(bootWanted){if(bootWanted.kind==='mission')select.lastMission=bootWanted.id;select(bootWanted);if(bootWanted.kind==='mission')$('missionSelect').value=bootWanted.id;if(bootWanted.kind==='sun'){S.playing=true;setPlayLabel();controls.minDistance=4;focusOn(sun,{dist:S.missionMode?mapAU(2.4)*1.8:S.cometMode?cometOverviewDist():overviewDist(),dir:new THREE.Vector3(0,.5,.86).normalize()});}}else if(S.missionMode&&missionList.length)select(missionList[0]);
+if(bootWanted){if(bootWanted.kind==='mission')select.lastMission=bootWanted.id;select(bootWanted);if(bootWanted.kind==='mission')$('missionSelect').value=bootWanted.id;if(bootWanted.kind==='sun'){S.playing=true;setPlayLabel();controls.minDistance=4;focusOn(sun,{dist:S.missionMode?mapAU(2.4)*1.8:S.cometMode?cometOverviewDist():overviewDist(),dir:new THREE.Vector3(0,.97,.24).normalize()});}}else if(S.missionMode&&missionList.length)select(missionList[0]);
 setTimeout(function () { var t = $('toast'); if (t) t.classList.add('gone'); }, 7000);
 requestAnimationFrame(function (n) { last = n; frame(n); });
 }
