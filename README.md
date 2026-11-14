@@ -10,9 +10,17 @@ NASA 3D models are included under `models/`; `GLTFLoader.js` is the Three.js r12
 
 Mission-era orbit reference pages: [NASA LRO](https://science.nasa.gov/mission/lro/about/), [NASA Mars Odyssey](https://mars.nasa.gov/system/downloadable_items/44749_odysseyarrival1.pdf), [ESA Mars Express](https://www.esa.int/articles/about-us/directorates/science/mars-express/the-mission), [NASA MRO](https://mars.nasa.gov/system/downloadable_items/44745_mro-arrival.pdf), and [NASA MAVEN](https://science.nasa.gov/mission/maven/).
 
+## Visible stars and exoplanets
+
+The background now uses 8,355 stellar entries from NASA HEASARC's Bright Star Catalog (BSC5P), selected at apparent magnitude under 6.5. J2000 right ascension and declination set each star's sky direction; magnitude sets its rendered brightness, and B−V color provides an approximate tint. The brightest stars with common names are labeled. Click a star or search by its catalog name/HR number to open its information panel. The panel includes catalog designation, magnitude, spectral type, distance when the catalog has parallax, and matched confirmed exoplanets with NASA Exoplanet Archive links. Planet matches use host HD numbers plus aliases for several common nearby systems. “No confirmed planet was matched” means the catalog match did not find one; it does not mean the star has no planets.
+
+The catalog is a naked-eye-threshold catalogue, not a guarantee that every entry is individually resolvable under every observing condition; close multiple stars may appear as one point. The star backdrop preserves J2000 sky directions but does not place stars at real distances from the Solar System. Star colors and dot sizes are visual approximations. `bright-stars.js` is required beside `index.html` and is loaded locally, so the star field works without a runtime data request.
+
+Data sources: [NASA HEASARC Bright Star Catalog (BSC5P)](https://heasarc.gsfc.nasa.gov/W3Browse/all/bsc5p.html) and [NASA Exoplanet Archive](https://exoplanetarchive.ipac.caltech.edu/). The confirmed-planet snapshot is based on the Archive's `PSCompPars` table.
+
 ## Visual and interaction features
 
-- Earth, Venus, and Saturn have a subtle additive atmospheric rim; the Sun glow pulses gently; the star field includes a clustered Milky Way band.
+- Earth, Venus, and Saturn have a subtle additive atmospheric rim; the Sun glow pulses gently; the star field uses catalog sky positions rather than generated random points.
 - Turn off **跟隨選取天體** to keep the camera on the Sun when selecting a planet, then watch it move along its orbit. Turn on **顯示歷史軌跡殘影** while time is playing to draw its recent path.
 - The time bar includes **即時**, **1 日/秒**, and **1 年/秒** presets. The former speed-slider values are migrated when saved preferences are loaded.
 - Planet information includes a simplified internal-structure diagram, labeled as not to scale. Comparison shows two selected bodies with diameter-proportional disks plus the existing measurements table.
@@ -23,4 +31,4 @@ The default **物理比例** mode uses one common unit scale: the Sun radius is 
 
 Orbital elements: [NASA/JPL Approximate Positions of the Planets](https://ssd.jpl.nasa.gov/planets/approx_pos.html). NASA's [planet distance guide](https://science.nasa.gov/solar-system/planet-sizes-and-locations-in-our-solar-system/) lists rounded average distances in kilometers.
 
-The atmosphere, solar animation, star-band clustering, and body scale diagrams are illustrative visualizations, not photorealistic or scale-complete scientific renders.
+The atmosphere, solar animation, approximate star colors and point sizes, and body scale diagrams are illustrative visualizations, not photorealistic or scale-complete scientific renders.
